@@ -1,0 +1,20 @@
+[
+  {
+    "tag": "v4.0-13d",
+    "assets": 81,
+    "bytes": 322920204,
+    "verified": true
+  },
+  {
+    "tag": "engine-2026.10.03",
+    "assets": 0,
+    "bytes": 0,
+    "verified": true
+  },
+  {
+    "tag": "v3.0-samples",
+    "assets": 5,
+    "bytes": 5878229556,
+    "verified": true
+  }
+]
