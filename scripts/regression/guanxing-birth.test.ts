@@ -22,3 +22,13 @@ const empty=chart.palaces.find(p=>!p.stars.some(s=>s.type==='major'))!;
 assert.ok(readPalace(chart,empty).evidence.includes('对宫'));
 const exported=exportReading(chart,'test');assert.equal((exported.match(/^## /gm)||[]).length,12);
 console.log('PASS: birth validation, late-zi rollover, explicit DST, solar cross-date, all palace readings, empty-palace borrowing and export.');
+
+const coarse={...base,time:'03:00',timeMode:'branch' as const};
+assert.equal(prepareBirth(coarse).info.hour,2);assert(prepareBirth(coarse).note.includes('未填写分钟'));
+assert.throws(()=>prepareBirth({...coarse,solar:true,city:'北京市',longitude:116.4}));
+assert.throws(()=>prepareBirth({...coarse,dst:true}));
+assert.throws(()=>prepareBirth({...coarse,time:'03:12'}));
+assert.equal(prepareBirth({...coarse,time:'23:00'}).info.day,2);
+assert.equal(prepareBirth({...coarse,time:'00:00'}).info.day,1);
+assert.equal(prepareBirth({...coarse,time:'23:00',late:'current-day'}).info.day,1);
+console.log('PASS: branch-only birth input, midnight distinction, legacy exact times and explicit correction requirements.');

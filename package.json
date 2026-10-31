@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx scripts/regression/pan-integrity.test.ts && tsx scripts/regression/dst-cn.test.ts && tsx scripts/regression/clock-adjust.test.ts && tsx scripts/regression/sizhu-lichun-boundary.test.ts && tsx scripts/regression/hongluan-tianxi.test.ts && tsx scripts/regression/famous-hour-consistency.test.ts && tsx scripts/regression/iztro-time-index-boundary.test.ts && tsx scripts/regression/solar-date-exists.test.ts && tsx scripts/regression/natal-dual-sihua-same-palace.test.ts && tsx scripts/regression/neutral-naming.test.ts && tsx scripts/regression/guanxing-birth.test.ts && tsx scripts/regression/guanxing-birth-picker.test.ts && tsx scripts/regression/guanxing-fortune.test.ts",
     "install:ci": "node scripts/install-ci.mjs",
-    "test:ai": "tsx scripts/regression/guanxing-ai.test.ts",
+    "test:ai": "tsx scripts/regression/guanxing-ai.test.ts && tsx scripts/regression/guanxing-ai-client.test.ts",
     "test:scores": "tsx scripts/regression/guanxing-scores.test.ts"
   },
   "dependencies": {

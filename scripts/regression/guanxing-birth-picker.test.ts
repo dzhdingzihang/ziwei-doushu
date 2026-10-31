@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {dateValue, daysInMonth, pastedDate, pastedTime, timeValue, todayInChina} from '../../lib/guanxing/birth-picker';
+import {dateValue, daysInMonth, pastedDate, pastedTime, timeValue, todayInChina,BIRTH_BRANCHES,branchChoice,birthTimeLabel} from '../../lib/guanxing/birth-picker';
 
 const today='2026-10-31';
 const date=(year:string,month:string,day:string)=>dateValue({year,month,day},today);
@@ -26,3 +26,10 @@ assert.equal(timeValue({hour:'23',minute:'59'}),'23:59');
 for(const parts of [{hour:'24',minute:'0'},{hour:'1',minute:'60'},{hour:'',minute:'0'},{hour:'1',minute:''}])assert.equal(timeValue(parts),'');
 assert.equal(timeValue(pastedTime('04：03')!),'04:03');
 console.log('PASS: leap dates, future date rejection, China date boundary, pasted dates and exact minute preservation.');
+
+assert.equal(BIRTH_BRANCHES.length,13);
+assert.equal(branchChoice('03:00')?.name,'寅时');assert.equal(branchChoice('04:59')?.name,'寅时');
+assert.equal(branchChoice('00:30')?.name,'早子时');assert.equal(branchChoice('23:30')?.name,'晚子时');
+assert.equal(branchChoice('24:00'),undefined);
+assert.equal(birthTimeLabel({time:'03:00',timeMode:'branch'}),'寅时（03:00–04:59）');
+assert.equal(birthTimeLabel({time:'03:07'}),'03:07');
