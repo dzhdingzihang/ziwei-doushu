@@ -103,3 +103,8 @@ console.log('PASS: normal tension metaphors remain readable; medical predictions
 for(const s of ['财运和身体状态都不错。','今年你的身体底子厚实。','睡眠质量也可能有所改善。','你更容易从疲劳中恢复过来。','身体的小毛病自然也就少了。','连续加班后你本来以为会病倒。','身心舒展，适合调养。','每一分努力都能换算成实在的收入。','命盘不能预测健康，但你的身体状态会改善。'])assert(unsupportedClaim(s),s);
 assert(!unsupportedClaim('关注真实的睡眠质量，按实际日程安排休息。'));
 console.log('PASS: improved health and guaranteed-income claims cannot slip through casual wording or a preceding disclaimer.');
+
+let retryRepairs=0;
+const repairRetry=await callAI(ctx,'test',undefined,async(_url,options)=>{const body=String(options?.body);let output:unknown;if(body.includes('你是生活规划文案编辑')){retryRepairs++;output={patches:[{id:'overview',text:retryRepairs===1?'你的身体状态会改善。':'工作上把要求问清楚，晚上给自己留出不处理消息的时间。'}]};}else output=body.includes('连贯叙述')?detailed:unsafe;return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(output)}}]});});
+assert.equal(retryRepairs,2);assert.equal(claimFields(repairRetry).length,0);assert.equal(repairRetry.domains.length,5);
+console.log('PASS: only rejected fields retry automatically; completed sections and scores survive.');

@@ -1,4 +1,4 @@
-import {PLAIN_VOICE_SYSTEM,PROSE_KEYS} from './ai-voice';
+import {PROSE_KEYS} from './ai-voice';
 // Validate generated prose only. Chart evidence can contain traditional palace names.
 export function unsupportedClaim(text:string){
  return text.split(/[。！？；，,\n]/).some(s=>{
@@ -13,12 +13,15 @@ export function claimFields(value:unknown,path:string[]=[]):{id:string;text:stri
  return Object.entries(value).flatMap(([key,v])=>typeof v==='string'&&PROSE_KEYS.has(key)&&unsupportedClaim(v)?[{id:[...path,key].join('.'),text:v}]:typeof v==='object'?claimFields(v,[...path,key]):[]);
 }
 export function safeRepairInput(fields:{id:string;text:string}[]){return fields.map(f=>({id:f.id,text:f.text.split(/(?<=[。！？\n])/).filter(s=>!unsupportedClaim(s)).join(''),minimumCharacters:f.id.endsWith('headline')?8:f.id.endsWith('analysis')?220:f.id.endsWith('reading')?150:60}));}
-export const REPAIR_SYSTEM=`你是生活规划文案编辑。输入已经移除了不可靠的医学预测和资产配置指令。根据剩余文字重新完成每个字段，原文为空时只写时间、任务、休息与沟通的具体安排。健康相关字段完全不谈星曜、身体状况、症状、病情、器官或医学结论；写安排缓冲时间、确定任务优先级、保留休息时段等可执行的内容，不能预测某种身体感受。不添加任何资产购买或配置指令。保留仍然存在的具体年份和月内分段，不添加新星曜、新预测或依据。达到每个字段minimumCharacters的长度，用有意义的具体生活场景展开，避免套话。输出JSON：{"patches":[{"id":"原id","text":"重写后的完整字段"}]}。每个字段都返回，id原样保留。\n${PLAIN_VOICE_SYSTEM}\n最后检查：健康相关字段仅写日程、任务、休息时间、沟通安排；不说身体好坏、不说睡眠变好或疲劳恢复、不谈补品或保健效果。财运保持可能情景，不把努力、控制开销或高分说成必然能增收。`;
+export const REPAIR_SYSTEM=`你是生活规划文案编辑。你只处理输入fields中的指定字段，逐个用大白话重写，id原样保留。原文已删掉不可靠的预测。根据剩下的工作、家庭、关系和时间信息展开，保留年份和月内分段，不增添命盘事实。用“你”、短句和具体生活安排；超过180字分成2个自然段，别用术语或四字对仗。headline写8–22字，其他字段达到minimumCharacters。
+这些字段原先包含不可靠判断，重写时必须遵守更严格的规则：不要出现身体、健康、睡眠、疲劳、症状、神经、疾病、体质、康复、补品、保健、病倒等词，也不要写运动、营养、医疗或身体效果。只写日程、任务、休息时段、陪伴和沟通，例如“晚上九点后不再处理工作消息，留半小时做自己的事”。这不是取消整份报告的生活参考，只是把指定字段改成可靠的日常安排。财运字段只写收支核对和预算安排，不保证增收，不推荐购买资产。
+只输出JSON：{"patches":[{"id":"原id","text":"重写后的完整字段"}]}。每个输入字段都必须返回，不增减id。`;
 
-export function applyClaimPatches(value:unknown,patch:unknown,fields:{id:string;text:string}[]){
+
+export function applyClaimPatches(value:unknown,patch:unknown,fields:{id:string;text:string}[],validateClaims=true){
  const p=(patch as {patches?:{id?:unknown;text?:unknown}[]})?.patches;
  if(!Array.isArray(p)||p.length!==fields.length||new Set(p.map(x=>x.id)).size!==fields.length)throw Error('AI 措辞修订未完成，请重试。');
  const copy=structuredClone(value) as Record<string,unknown>;
- for(const field of fields){const row=p.find(x=>x.id===field.id);if(!row||typeof row.text!=='string'||!row.text.trim()||row.text.length>1800||unsupportedClaim(row.text))throw Error('AI 措辞修订未通过，请重试。');const keys=field.id.split('.');let target=copy;for(const key of keys.slice(0,-1))target=target[key] as Record<string,unknown>;target[keys.at(-1)!]=row.text.trim();}
+ for(const field of fields){const row=p.find(x=>x.id===field.id);if(!row||typeof row.text!=='string'||!row.text.trim()||row.text.length>1800||(validateClaims&&unsupportedClaim(row.text)))throw Error('AI 措辞修订未通过，请重试。');const keys=field.id.split('.');let target=copy;for(const key of keys.slice(0,-1))target=target[key] as Record<string,unknown>;target[keys.at(-1)!]=row.text.trim();}
  return copy;
 }

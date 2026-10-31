@@ -69,9 +69,14 @@ export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetche
  return content;
  }
  async function checkLanguage(value:unknown){
-  const fields=claimFields(value);if(!fields.length)return value;
-  const patch=await complete([{role:'system',content:REPAIR_SYSTEM},{role:'user',content:JSON.stringify({fields:safeRepairInput(fields)})}],Math.min(7000,1200+fields.length*600));
-  try{return applyClaimPatches(value,patch,fields);}catch(error){throw new AIError(error instanceof Error?error.message:'AI 措辞校验失败，请重试。',502);}
+  let checked=value;
+  for(let attempt=0;attempt<3;attempt++){
+   const fields=claimFields(checked);if(!fields.length)return checked;
+   const patch=await complete([{role:'system',content:REPAIR_SYSTEM},{role:'user',content:JSON.stringify({fields:safeRepairInput(fields),attempt:attempt+1,reminder:attempt?'上次仍有不合要求的文字。这次严格只写任务、时间、陪伴、沟通或收支核对，不写任何身体效果或收入保证。':undefined})}],Math.min(9000,1200+fields.length*800));
+   try{checked=applyClaimPatches(checked,patch,fields,false);}catch(error){if(attempt===2)throw new AIError(error instanceof Error?error.message:'AI 措辞校验失败，请重试。',502);}
+  }
+  if(claimFields(checked).length)throw new AIError('个别段落仍需整理，请稍后重试。',502);
+  return checked;
  }
  async function checkProse(value:unknown){
   let checked=await checkLanguage(value);
