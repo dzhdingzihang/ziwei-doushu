@@ -108,3 +108,8 @@ let retryRepairs=0;
 const repairRetry=await callAI(ctx,'test',undefined,async(_url,options)=>{const body=String(options?.body);let output:unknown;if(body.includes('你是生活规划文案编辑')){retryRepairs++;output={patches:[{id:'overview',text:retryRepairs===1?'你的身体状态会改善。':'工作上把要求问清楚，晚上给自己留出不处理消息的时间。'}]};}else output=body.includes('连贯叙述')?detailed:unsafe;return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(output)}}]});});
 assert.equal(retryRepairs,2);assert.equal(claimFields(repairRetry).length,0);assert.equal(repairRetry.domains.length,5);
 console.log('PASS: only rejected fields retry automatically; completed sections and scores survive.');
+
+let voiceRetries=0;
+const voiceRetry=await callAI(ctx,'test',undefined,async(_url,options)=>{const body=String(options?.body);let output:unknown;if(body.includes('你是观星报告的大白话编辑')){voiceRetries++;output={patches:[{id:'domains.1.analysis',text:voiceRetries===1?'文曲化忌，项目容易改来改去。':plain}]};}else output=body.includes('连贯叙述')?detailed:stiff;return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(output)}}]});});
+assert.equal(voiceRetries,2);assert.equal(voiceFields(voiceRetry).length,0);assert.equal(voiceRetry.domains[1].analysis,plain);
+console.log('PASS: jargon repair retries only remaining fields without restarting the report.');

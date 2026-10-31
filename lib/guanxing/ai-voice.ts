@@ -16,11 +16,12 @@ export function voiceFields(value:unknown,path:string[]=[]):VoiceField[]{
  if(!value||typeof value!=='object')return[];
  return Object.entries(value).flatMap(([key,v])=>typeof v==='string'&&PROSE_KEYS.has(key)&&needsPlainVoice(v)?[{id:[...path,key].join('.'),text:v}]:typeof v==='object'?voiceFields(v,[...path,key]):[]);
 }
-export const VOICE_REPAIR_SYSTEM=`你是观星报告的大白话编辑。只重写给出的字段，保留原来的好坏判断、时间段和适用条件，不添加新事件、不改变含义、不制造收益或医学结论。把术语解释成生活中的人和事，去掉绕口句；即使原文有术语，改写后也不能保留。保留段落信息量，不要把详细段落缩成一句口号。headline是简短口语标题，其余字段长度尽量接近原文。id原样返回。只输出JSON：{"patches":[{"id":"原id","text":"改写后的完整字段"}]}。\n${PLAIN_VOICE_SYSTEM}`;
-export function applyVoicePatches(value:unknown,patch:unknown,fields:VoiceField[]){
+export const VOICE_REPAIR_SYSTEM=`你是观星报告的大白话编辑。只重写输入fields里的文字，保留id和原来的时间、好坏判断、适用条件。把所有命理术语彻底换成生活语言，不保留任何星名、宫名或四化名词，不夹英文，不使用“若你目前”“这一信号可对应”等固定句式。别解释术语，直接讲生活里的具体事情。原文多长，改写后就尽量保持相近的信息量；超过180字分为2–3个自然段。headline改为简短的口语标题。不要添加保证、医学结论或新事件。每个字段都返回，id原样保留。只输出JSON：{"patches":[{"id":"原id","text":"完整改写后的文字"}]}。`;
+
+export function applyVoicePatches(value:unknown,patch:unknown,fields:VoiceField[],validateVoice=true){
  const patches=(patch as {patches?:VoiceField[]})?.patches;
  if(!Array.isArray(patches)||patches.length!==fields.length||new Set(patches.map(p=>p.id)).size!==fields.length)throw Error('详批文字整理未完成，请重试。');
  const copy=structuredClone(value) as Record<string,unknown>;
- for(const field of fields){const p=patches.find(p=>p.id===field.id);if(!p||typeof p.text!=='string'||!p.text.trim()||p.text.length>1800||needsPlainVoice(p.text))throw Error('详批文字仍不够清楚，请重试。');const keys=field.id.split('.');let target=copy;for(const key of keys.slice(0,-1))target=target[key] as Record<string,unknown>;target[keys.at(-1)!]=p.text.trim();}
+ for(const field of fields){const p=patches.find(p=>p.id===field.id);if(!p||typeof p.text!=='string'||!p.text.trim()||p.text.length>1800||(validateVoice&&needsPlainVoice(p.text)))throw Error('详批文字仍不够清楚，请重试。');const keys=field.id.split('.');let target=copy;for(const key of keys.slice(0,-1))target=target[key] as Record<string,unknown>;target[keys.at(-1)!]=p.text.trim();}
  return copy;
 }

@@ -80,12 +80,13 @@ export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetche
  }
  async function checkProse(value:unknown){
   let checked=await checkLanguage(value);
-  const fields=voiceFields(checked);
-  if(fields.length){
-   const patches=await complete([{role:'system',content:VOICE_REPAIR_SYSTEM},{role:'user',content:JSON.stringify({fields})}],Math.min(16000,1500+fields.reduce((n,f)=>n+Math.ceil(f.text.length*2.5),0)));
-   try{checked=applyVoicePatches(checked,patches,fields);}catch(e){throw new AIError(e instanceof Error?e.message:'详批文字整理失败，请重试。',502);}
+  for(let attempt=0;attempt<3;attempt++){
+   const fields=voiceFields(checked);if(!fields.length)return checked;
+   const patches=await complete([{role:'system',content:VOICE_REPAIR_SYSTEM},{role:'user',content:JSON.stringify({fields,attempt:attempt+1,reminder:attempt?'这些字段仍有术语、英文或固定套话。这次全部改成日常说话的方式，不复述原来的专业词。':undefined})}],Math.min(16000,1500+fields.reduce((n,f)=>n+Math.ceil(f.text.length*2.5),0)));
+   try{checked=applyVoicePatches(checked,patches,fields,false);}catch(e){if(attempt===2)throw new AIError(e instanceof Error?e.message:'详批文字整理失败，请重试。',502);}
    checked=await checkLanguage(checked);
   }
+  if(voiceFields(checked).length)throw new AIError('个别段落仍需整理，请稍后重试。',502);
   return checked;
  }
  const [content,detailContent]=await Promise.all([
