@@ -1,1 +1,1 @@
-module.exports = { output: 'export', trailingSlash: true, images: { unoptimized: true }, transpilePackages: ['lunar-javascript'] };
+export default { trailingSlash: true, images: { unoptimized: true }, transpilePackages: ['lunar-javascript'] };

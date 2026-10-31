@@ -11,3 +11,8 @@ node_modules
 out/
 .openai/*.jsonl
 .openai/*.lock
+
+.dev.vars*
+.wrangler/
+.sites-runtime/
+.vinext/

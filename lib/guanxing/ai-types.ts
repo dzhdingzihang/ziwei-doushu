@@ -1,0 +1,5 @@
+import type {DomainKey} from './fortune';
+export type AIQuery={scope:'annual'|'monthly';year:number;month?:number};
+export type AIDomain={key:DomainKey;headline:string;score:number;analysis:string;scenario:string;watch:string;opportunity:string;caution:string;action:string;basis:string[]};
+export type AIReport={version:2;score:number;model:string;generatedAt:string;title:string;overview:string;domains:AIDomain[];timeline:{range:string;reading:string}[]};
+export function aiReportMarkdown(r:AIReport){return `## ${r.title} · AI 解读\n\n综合参考分：${r.score}/100（命理指数，不是概率）\n\n模型：${r.model} · 生成于 ${r.generatedAt}\n\n${r.overview}\n\n`+r.domains.map(d=>`### ${{wealth:'财运',career:'事业',health:'健康',family:'家庭',love:'情感'}[d.key]} · ${d.score}/100 · ${d.headline}\n\n${d.analysis}\n\n情景预估：${d.scenario}\n\n现实观察信号：${d.watch}\n\n可关注：${d.opportunity}\n\n需留意：${d.caution}\n\n行动：${d.action}\n\n排盘依据：${d.basis.join(' ')}`).join('\n\n')+(r.timeline.length?'\n\n### 月内节奏\n\n'+r.timeline.map(t=>`**${t.range}** ${t.reading}`).join('\n\n'):'');}

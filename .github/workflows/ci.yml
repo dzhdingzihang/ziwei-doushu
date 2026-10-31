@@ -27,3 +27,9 @@ jobs:
 
       - name: 排盘引擎回归
         run: npm test
+
+      - name: AI 边界与依据校验
+        run: npm run test:ai
+
+      - name: Reference score regression
+        run: npm run test:scores

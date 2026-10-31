@@ -4,12 +4,14 @@
 
 基于 Renhuai123/ziwei-doushu 的完整 Fork。保留上游历史、引擎、古籍、语料和许可；另通过 Releases 镜像工作流复制所有独立数据附件。
 
-本版本提供年度与月度五维运势（财运、事业、健康、家庭、感情）、完整紫微命盘、基础宫位解释、十四主星百科、古籍全文搜索、命盘本机收藏与 Markdown 导出。当前解读为原创规则说明，非 AI，不包含上游未公开的商业断语库。
+本版本提供年度与月度五维运势（财运、事业、健康、家庭、感情）、完整紫微命盘、基础宫位解释、十四主星百科、古籍全文搜索、命盘本机收藏与 Markdown 导出。已接入千问 Qwen Plus 真实 AI 年度/月度分析，支持年运/月运/五领域 100 分参考评分、具体情景预估、观察信号、月内分段、逐月批量生成、停止、重试、会话缓存和 Markdown 导出。基础规则独立保留。不包含上游未公开的商业断语库。
 
 - [项目说明与运行方式](docs/观星项目说明.md)
 - [未改动的上游说明](docs/README.upstream.md)
 - [数据镜像工作流](https://github.com/dzhdingzihang/ziwei-doushu/actions/workflows/mirror-releases.yml)
 - [全部数据 Releases](https://github.com/dzhdingzihang/ziwei-doushu/releases)
+
+本分支的 AI 后端、部署和验证说明见 [docs/ai-analysis.md](docs/ai-analysis.md)。以下保留的上游文档不代表本分支新增 AI 接口的限制。
 
 ---
 

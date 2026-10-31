@@ -1,3 +1,4 @@
+import {calculateScore,weightedScore,overallScore,type FortuneScore} from './scores';
 import { astro } from 'iztro';
 import { Solar, Lunar } from 'lunar-javascript';
 import type { ZiweiChart, SiHua } from '../ziwei/types';
@@ -7,10 +8,10 @@ import { getDaXianSiHua } from '../ziwei/sihua';
 import { STAR_NOTES } from './reading';
 export type DomainKey = 'wealth'|'career'|'health'|'family'|'love';
 export type Tone = 'open'|'steady'|'care'|'mixed';
-export type DomainReading = { key:DomainKey; label:string; tone:Tone; headline:string; reading:string; focus:string; evidence:string[] };
-export type PeriodReading = { title:string; date:string; year:number; lunarMonth:number; age:number; scope:'yearly'|'monthly'; cycle:string; domains:DomainReading[]; signature:string; range?:string };
+export type DomainReading = { key:DomainKey; label:string; tone:Tone; headline:string; reading:string; focus:string; evidence:string[];score:FortuneScore };
+export type PeriodReading = { title:string; date:string; year:number; lunarMonth:number; age:number; scope:'yearly'|'monthly'; cycle:string; domains:DomainReading[]; signature:string; range?:string;score:number };
 export type MonthSegment = { start:string; end:string; report:PeriodReading };
-export type MonthReport = { year:number; month:number; title:string; segments:MonthSegment[]; summaries:{key:DomainKey;label:string;text:string;tone:Tone}[] };
+export type MonthReport = { year:number; month:number; title:string; segments:MonthSegment[]; summaries:{key:DomainKey;label:string;text:string;tone:Tone;score:FortuneScore}[];score:number };
 export const DOMAIN_LABELS:Record<DomainKey,string>={wealth:'财运',career:'事业',health:'健康',family:'家庭',love:'感情'};
 const definitions:{key:DomainKey;palace:string}[]=[{key:'wealth',palace:'财帛'},{key:'career',palace:'官禄'},{key:'health',palace:'疾厄'},{key:'family',palace:'田宅'},{key:'love',palace:'夫妻'}];
 const wording:Record<DomainKey,Record<Tone,[string,string,string]>>={
@@ -43,10 +44,10 @@ export function fortuneAt(chart:ZiweiChart,date:string,scope:'yearly'|'monthly')
   const evidence=[`${label}${palace}宫落${BRANCHES[branch]}，叠本命${p.name}。`,`${own.length?'本宫主星':'本宫空宫，借对宫主星'}：${stars||'无'}。`,...signals.map(s=>`${s.label}：${s.star}化${s.hua}${s.opposite?'在对宫冲照':'同宫'}。`)];
   if(!signals.length)evidence.push('本期、流年背景与所选大限未出现该位置同宫四化或对宫化忌。');
   const starStyle=major.map(s=>STAR_NOTES[s.name]?.theme).filter(Boolean).join(' / ');
-  return {key,label:DOMAIN_LABELS[key],tone,headline,reading:reading+(starStyle?` 此位置的${stars}带来「${starStyle}」的象义侧重。`:''),focus,evidence};
+  return {key,label:DOMAIN_LABELS[key],tone,headline,score:calculateScore(p.stars,major,!own.length,signals,label),reading:reading+(starStyle?` 此位置的${stars}带来「${starStyle}」的象义侧重。`:''),focus,evidence};
  });
  const cycle=dx?`${dx.startAge}–${dx.endAge} 虚岁 · ${dx.palaceName}大限`:age<(chart.daXians[0]?.startAge||1)?'童限 · 不套用成人大限':'超出大限范围 · 仅显示流年流月';
- return {title:`${year} ${h.yearly.heavenlyStem}${h.yearly.earthlyBranch}年`,date,year,lunarMonth:lunar.getMonth(),age,scope,cycle,domains,signature:[year,item.index,item.heavenlyStem,item.earthlyBranch,dxIndex].join('-')};
+ return {title:`${year} ${h.yearly.heavenlyStem}${h.yearly.earthlyBranch}年`,date,year,lunarMonth:lunar.getMonth(),age,scope,cycle,domains,score:overallScore(domains.map(d=>d.score)),signature:[year,item.index,item.heavenlyStem,item.earthlyBranch,dxIndex].join('-')};
 }
 export function annualFortune(chart:ZiweiChart,year:number){if(!Number.isInteger(year)||year<chart.lunarInfo.lunarYear||year>2099)throw Error('年份超出可查询范围。');const start=Lunar.fromYmd(year,1,1).getSolar();const next=Lunar.fromYmd(year+1,1,1).getSolar();const end=new Date(Date.UTC(next.getYear(),next.getMonth()-1,next.getDay()-1));const b=chart.birthInfo.origInput||chart.birthInfo;const born=dateString(b.year,b.month,b.day);const begin=solarString(start)<born?born:solarString(start);const r=fortuneAt(chart,begin,'yearly');r.range=`${begin} 至 ${dateString(end.getUTCFullYear(),end.getUTCMonth()+1,end.getUTCDate())}`;return r;}
 export function monthlyFortune(chart:ZiweiChart,year:number,month:number):MonthReport{
@@ -58,8 +59,8 @@ export function monthlyFortune(chart:ZiweiChart,year:number,month:number):MonthR
   const l=Solar.fromYmd(year,month,d).getLunar();const current=[l.getYear(),l.getMonth(),l.getMonth()<0&&l.getDay()>15?'late':'early'].join('-');
   if(current!==key){const report=fortuneAt(chart,date,'monthly');segments.push({start:date,end:date,report});key=current;}else segments[segments.length-1].end=date;
  }
- const summaries=definitions.map(({key})=>{const ds=segments.map(s=>s.report.domains.find(x=>x.key===key)!);const tones=new Set(ds.map(d=>d.tone));const tone:Tone=tones.size>1?'mixed':ds[0]?.tone||'steady';return{key,label:DOMAIN_LABELS[key],text:ds.length?[...new Set(ds.map(d=>d.headline))].join(' → '):'出生前，不作推演',tone};});
- return {year,month,title:`${year} 年 ${month} 月`,segments,summaries};
+ const summaries=definitions.map(({key})=>{const ds=segments.map(s=>s.report.domains.find(x=>x.key===key)!);const tones=new Set(ds.map(d=>d.tone));const tone:Tone=tones.size>1?'mixed':ds[0]?.tone||'steady';const score=weightedScore(segments.map((s,i)=>({score:ds[i].score,weight:Math.round((Date.parse(s.end)-Date.parse(s.start))/86400000)+1,label:`${s.start}—${s.end}`})));return{key,label:DOMAIN_LABELS[key],score,text:ds.length?[...new Set(ds.map(d=>d.headline))].join(' → '):'出生前，不作推演',tone};});
+ return {year,month,title:`${year} 年 ${month} 月`,segments,summaries,score:overallScore(summaries.map(d=>d.score))};
 }
 export function monthsFor(mode:'recent'|'future'|'thisYear'|'nextYear',now=new Date()):{year:number;month:number}[]{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'numeric'}).formatToParts(now);const year=Number(parts.find(p=>p.type==='year')!.value),month=Number(parts.find(p=>p.type==='month')!.value);const start=mode==='recent'?month-1-11:mode==='future'?month:0;const y=year+(mode==='nextYear'?1:0);return Array.from({length:12},(_,i)=>{const d=new Date(Date.UTC(y,start+i,1));return{year:d.getUTCFullYear(),month:d.getUTCMonth()+1};});}
-export function exportFortunes(annuals:PeriodReading[],months:MonthReport[]){return '# 观星 · 年度与月度运势\n\n传统文化规则推演，不是对真实事件的保证；健康内容不能用于诊断。\n年度按农历年；月度按公历月，并列出月内农历运限交界。\n\n'+annuals.map(r=>`## ${r.title}（${r.range}）\n\n${r.cycle}\n\n`+r.domains.map(d=>`### ${d.label} · ${d.headline}\n\n${d.reading}\n\n关注：${d.focus}\n\n依据：${d.evidence.join(' ')}`).join('\n\n')).join('\n\n')+'\n\n'+months.map(m=>`## ${m.title}\n\n`+m.segments.map(s=>`### ${s.start} — ${s.end}\n\n`+s.report.domains.map(d=>`**${d.label}：${d.headline}**\n\n${d.reading}\n\n关注：${d.focus}\n\n依据：${d.evidence.join(' ')}`).join('\n\n')).join('\n\n')).join('\n\n')+'\n\n运限计算：https://docs.iztro.com/posts/horoscope\n引擎来源：https://github.com/Renhuai123/ziwei-doushu\n';}
+export function exportFortunes(annuals:PeriodReading[],months:MonthReport[]){return '# 观星 · 年度与月度运势\n\n传统文化规则推演，不是对真实事件的保证；健康内容不能用于诊断。\n年度按农历年；月度按公历月，并列出月内农历运限交界。\n\n'+annuals.map(r=>`## ${r.title}（${r.range}）\n\n${r.cycle} · 总分 ${r.score}/100（命理参考指数，非概率）\n\n`+r.domains.map(d=>`### ${d.label} · ${d.score.value}/100 · ${d.headline}\n\n${d.reading}\n\n关注：${d.focus}\n\n依据：${d.evidence.join(' ')}`).join('\n\n')).join('\n\n')+'\n\n'+months.map(m=>`## ${m.title} · 总分 ${m.score}/100（命理参考指数）\n\n`+m.segments.map(s=>`### ${s.start} — ${s.end}\n\n`+s.report.domains.map(d=>`**${d.label}：${d.score.value}/100 · ${d.headline}**\n\n${d.reading}\n\n关注：${d.focus}\n\n依据：${d.evidence.join(' ')}`).join('\n\n')).join('\n\n')).join('\n\n')+'\n\n运限计算：https://docs.iztro.com/posts/horoscope\n引擎来源：https://github.com/Renhuai123/ziwei-doushu\n';}
