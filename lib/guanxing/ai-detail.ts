@@ -46,7 +46,7 @@ export function validateDetail(value:unknown,ctx:DetailContext):AIDetail{
   return expected.map(id=>{const r=raw.find(x=>x?.id===id);if(!r||!Array.isArray(r.basisIds)||new Set(r.basisIds).size<2||r.basisIds.length>8||r.basisIds.some((b:unknown)=>typeof b!=='string'||!b.startsWith(prefix(id))||!ctx.bases[b]))return fail(`${id} 引用不匹配`);return{id,headline:str(r.headline,1,100),reading:str(r.reading,min),basis:[...new Set(r.basisIds as string[])].map(b=>ctx.bases[b])};});
  }
  if(!v||claimFields(v).length||voiceFields(v).length)return fail();
- const natal=read(v.natal,['character','work','relationship'],()=> 'natal-',80);
+ const natal=read(v.natal,ctx.natal.length?['character','work','relationship']:[],()=> 'natal-',80);
  const cycles=read(v.cycles,ctx.cycles.map(c=>c.id),id=>`${id}-`,60).map((r,i)=>({...r,label:ctx.cycles[i].label,range:ctx.cycles[i].range,ageRange:ctx.cycles[i].ageRange}));
  const years=read(v.years,ctx.years.map(y=>y.id),id=>`${id}-`,40).map((r,i)=>({...r,year:ctx.years[i].year,score:ctx.years[i].score,domainScores:ctx.years[i].domains.map(d=>({key:d.key,score:d.score}))}));
  const months=read(v.months,ctx.months.map(m=>m.id),id=>`${id}-`,70).map((r,i)=>({...r,year:ctx.months[i].year,month:ctx.months[i].month,score:ctx.months[i].score,domainScores:ctx.months[i].domainScores,ranges:ctx.months[i].segments.map(s=>`${s.range} · 农历 ${s.lunarYear} 年 ${s.lunarMonth<0?'闰':''}${Math.abs(s.lunarMonth)} 月`)}));
@@ -57,7 +57,7 @@ export function validateDetail(value:unknown,ctx:DetailContext):AIDetail{
 export function detailRepairTasks(value:unknown,ctx:DetailContext){
  const v=value as Record<string,unknown>;
  const groups=[
-  {group:'natal',items:['character','work','relationship'].map(id=>({id,facts:ctx.natal})),min:80},
+  {group:'natal',items:(ctx.natal.length?['character','work','relationship']:[]).map(id=>({id,facts:ctx.natal})),min:80},
   {group:'cycles',items:ctx.cycles,min:60},
   {group:'years',items:ctx.years,min:40},
   {group:'months',items:ctx.months,min:70}
@@ -75,7 +75,7 @@ export function applyDetailRepairs(value:unknown,repair:unknown,ctx:DetailContex
  if(!Array.isArray(patches)||patches.length!==tasks.length)throw Error('详批补全未完成，请重试。');
  const out=structuredClone(value) as Record<string,unknown>;
  for(const task of tasks){const matches=patches.filter(p=>p.group===task.group&&p.id===task.id);if(matches.length!==1)throw Error('详批补全条目不匹配，请重试。');const rows=Array.isArray(out[task.group])?out[task.group] as Record<string,unknown>[]:[];out[task.group]=[...rows.filter(r=>r.id!==task.id),matches[0]];}
- const ids={natal:['character','work','relationship'],cycles:ctx.cycles.map(x=>x.id),years:ctx.years.map(x=>x.id),months:ctx.months.map(x=>x.id)};
+ const ids={natal:ctx.natal.length?['character','work','relationship']:[],cycles:ctx.cycles.map(x=>x.id),years:ctx.years.map(x=>x.id),months:ctx.months.map(x=>x.id)};
  for(const [group,expected] of Object.entries(ids)){const rows=out[group] as Record<string,unknown>[];out[group]=expected.map(id=>rows?.find(r=>r.id===id));}
  return out;
 }

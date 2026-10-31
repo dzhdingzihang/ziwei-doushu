@@ -7,7 +7,7 @@ import {generateChart} from '../ziwei/algorithm';
 import {getDaXianIndexForYear} from '../ziwei/yunxian-context';
 import type {BirthInfo} from '../ziwei/types';
 import {annualFortune,monthlyFortune,DOMAIN_LABELS,type DomainKey} from './fortune';
-import type {AIQuery,AIReport} from './ai-types';
+import type {AIQuery,AIReport,AIStage,AIChunk} from './ai-types';
 const KEYS=Object.keys(DOMAIN_LABELS) as DomainKey[];
 export class AIError extends Error{constructor(message:string,public status=400){super(message);}}
 export function parseAIRequest(raw:unknown):{birth:BirthInfo;query:AIQuery}{
@@ -56,7 +56,7 @@ export function validateAIOutput(value:unknown,ctx:AIContext):Omit<AIReport,'ver
  if(!money)throw new AIError('AI 财运详批不完整，请重试。',502);
  return {overview,domains,timeline,score:ctx.score,money:{earning:str(money.earning,800),retention:str(money.retention,800),outflow:str(money.outflow,800)}};
 }
-export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetcher:typeof fetch=fetch):Promise<AIReport>{
+function createWriter(ctx:AIContext,key:string,signal?:AbortSignal,fetcher:typeof fetch=fetch){
  if(!key)throw new AIError('AI 服务尚未配置，请联系网站维护者。',503);
  const abort=AbortSignal.any([AbortSignal.timeout(240000),...(signal?[signal]:[])]);
  async function complete(messages:{role:string;content:string}[],maxTokens:number){
@@ -89,10 +89,30 @@ export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetche
   if(voiceFields(checked).length)throw new AIError('个别段落仍需整理，请稍后重试。',502);
   return checked;
  }
- const [content,detailContent]=await Promise.all([
-  complete([{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],9000).then(value=>checkProse(ctx.scope==='annual'&&value&&typeof value==='object'?{...value,timeline:[]}:value)),
-  ctx.detail?complete([{role:'system',content:DETAIL_SYSTEM},{role:'user',content:JSON.stringify({...ctx.detail,bases:undefined})}],14000).then(checkProse):Promise.resolve(undefined)
- ]);
+ async function repairBases(value:unknown,field:'domains'|'highlights'){
+  const v=value as Record<string,unknown>;const rows=v?.[field];if(!Array.isArray(rows))return value;
+  const invalid=rows.filter(row=>KEYS.includes(row?.key)&&(!Array.isArray(row.basisIds)||new Set(row.basisIds).size<2||row.basisIds.length>8||row.basisIds.some((id:unknown)=>typeof id!=='string'||!ctx.bases[id]||!id.includes(`-${row.key}-`))));
+  if(!invalid.length)return value;
+  const result=await complete([{role:'system',content:'为已有解读核对引用，不改写正文。每个key从它自己的facts中选择2至5个支持该段落的不同id，必须原样复制，不能创造id，不跨领域引用。只返回JSON：{"citations":[{"key":"原key","basisIds":["原id","原id"]}]}。'},{role:'user',content:JSON.stringify({sections:invalid.map(row=>({key:row.key,headline:row.headline,analysis:row.analysis,facts:ctx.periods.flatMap(p=>p.domains.filter(d=>d.key===row.key).flatMap(d=>d.facts))}))})}],1800) as {citations?:{key:string;basisIds:string[]}[]};
+  if(!Array.isArray(result.citations))return value;
+  return {...v,[field]:rows.map(row=>{const repaired=result.citations!.find(r=>r.key===row.key);return invalid.includes(row)&&repaired?{...row,basisIds:repaired.basisIds}:row;})};
+ }
+ async function summary(){
+  const value=await complete([{role:'system',content:`你是观星的命盘解读助手。${PLAIN_VOICE_SYSTEM} 只写一段先读结论，用大白话直接告诉本人这年最顺和最费心的事。依据输入的分数和事实，不编造工作、婚姻、收入经历；不承诺财富、升职、婚期，不建议买房置业或购买任何资产，不给医学预测或身体状态判断。标题不要写“家宅兴旺、利于置业、宜守成勿冒进”，说“家里的事好商量”“先把手头的工作做好”。健康项只谈日程和休息。儿童写学习和家庭，高龄不默认在职。overview 100-160字，不说星曜术语，不写健康；highlights五项各用12-24字给出具体侧重，每项引用本领域2个facts的id。只返回JSON：{"overview":"简短结论","highlights":[{"key":"wealth","headline":"赚钱机会需要谈清报酬","basisIds":["原事实id"]},...career,health,family,love]}。`},{role:'user',content:JSON.stringify({title:ctx.title,age:ctx.periods[0].age,periods:ctx.periods.map(p=>({range:p.range,domains:p.domains.map(d=>({key:d.key,score:d.referenceScore,facts:d.facts}))}))})}],1500);
+  const v=await checkProse(await repairBases(value,'highlights')) as {overview?:unknown;highlights?:Record<string,unknown>[]};
+  if(typeof v?.overview!=='string'||!v.overview.trim()||v.overview.length>800||!Array.isArray(v.highlights)||v.highlights.length!==5)throw new AIError('简短结论尚未完成，请重试。',502);
+  const highlights=KEYS.map(key=>{const row=v.highlights!.find(x=>x.key===key);if(!row||typeof row.headline!=='string'||!row.headline.trim()||row.headline.length>100||!Array.isArray(row.basisIds)||row.basisIds.length<2||row.basisIds.some(id=>typeof id!=='string'||!ctx.bases[id]||!id.includes(`-${key}-`)))throw new AIError('结论的依据不完整，请重试。',502);return {key,headline:row.headline,score:ctx.domainScores.find(d=>d.key===key)!.score.value,basis:row.basisIds.map(id=>ctx.bases[id])};});
+  return {overview:v.overview,highlights,model:'qwen3.7-plus'};
+ }
+ async function core():Promise<AIReport>{
+  const value=await complete([{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],9000);
+  const cited=await repairBases(value,'domains');
+  const content=await checkProse(ctx.scope==='annual'&&cited&&typeof cited==='object'?{...cited,timeline:[]}:cited);
+  return {version:4,title:ctx.title,model:'qwen3.7-plus',generatedAt:new Date().toISOString(),...validateAIOutput(content,ctx)};
+ }
+ async function detailed(detailContext:NonNullable<AIContext['detail']>){
+  const ctx={detail:detailContext};
+  const detailContent=await complete([{role:'system',content:DETAIL_SYSTEM+'\n本次只写输入中非空的章节。输入为空的数组必须返回空数组，包括 natal；不要补写别的章节。'},{role:'user',content:JSON.stringify({...detailContext,bases:undefined})}],14000).then(checkProse);
  let detail:AIReport['detail'];
  if(ctx.detail){
   try{detail=validateDetail(detailContent,ctx.detail);}catch{
@@ -115,6 +135,22 @@ export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetche
    try{detail=validateDetail(await checkProse(applyDetailRepairs(detailContent,patched,ctx.detail)),ctx.detail);}catch(error){throw new AIError(error instanceof Error?error.message:'详批生成不完整，请重试。',502);}
   }
  }
- const checked=validateAIOutput(content,ctx);
- return{version:4,detail,title:ctx.title,model:'qwen3.7-plus',generatedAt:new Date().toISOString(),...checked};
+ return detail!;
+ }
+ return {core,detailed,summary,model:'qwen3.7-plus'};
+}
+export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetcher:typeof fetch=fetch):Promise<AIReport>{
+ const writer=createWriter(ctx,key,signal,fetcher);
+ const [report,detail]=await Promise.all([writer.core(),ctx.detail?writer.detailed(ctx.detail):undefined]);
+ return {...report,detail};
+}
+export async function callAIStage(ctx:AIContext,key:string,stage:AIStage,signal?:AbortSignal,fetcher:typeof fetch=fetch):Promise<AIChunk>{
+ const writer=createWriter(ctx,key,signal,fetcher);
+ if(stage==='summary')return {stage,model:writer.model,summary:await writer.summary()};
+ if(stage==='core')return {stage,model:writer.model,report:await writer.core()};
+ if(!ctx.detail)throw new AIError('月度报告不包含此章节。');
+ const d=ctx.detail;
+ const subset={...d,natal:stage==='foundation'?d.natal:[],cycles:stage==='foundation'?d.cycles:[],years:stage==='outlook'?d.years:[],months:stage==='months-first'?d.months.filter(m=>m.month<=6):stage==='months-last'?d.months.filter(m=>m.month>6):[]};
+ const detail=await writer.detailed(subset);
+ return {stage,model:writer.model,detail};
 }

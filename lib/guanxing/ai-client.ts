@@ -1,5 +1,6 @@
 import type {BirthInfo} from '../ziwei/types';
-import type {AIQuery,AIReport} from './ai-types';
+import type {AIQuery,AIReport,AIDraft,AIChunk} from './ai-types';
+import {generateInStages,stagesFor,validSummary} from './ai-progress';
 export const REPORT_PREFIX='gx-ai-v4:';
 export const queryKey=(q:AIQuery)=>`${q.scope}-${q.year}-${q.month||0}`;
 export const reportFingerprint=(b:BirthInfo)=>`${b.year}-${b.month}-${b.day}-${b.hour}-${b.gender}`;
@@ -24,17 +25,17 @@ export function persistReport(store:Store,fp:string,id:string,r:AIReport){
   for(;;){try{store.setItem(key,raw);return true;}catch{if(!keys.length)return false;store.removeItem(keys.shift()!.key);}}
  }catch{return false;}
 }
-export function clearReportCache(stores:Store[]){for(const s of stores){for(const k of storeKeys(s)){if(k.startsWith('gx-ai-v')||k.startsWith('gx-ai-paused:'))s.removeItem(k);}}}
-export type QueueState={reports:Record<string,AIReport>;busy:string;progress:string;errors:Record<string,string>;ready:boolean;paused:boolean;storageWarning:string};
-export type QueueEnvironment={load:()=>Record<string,AIReport>;save:(id:string,r:AIReport)=>boolean;getPaused:()=>boolean;setPaused:(v:boolean)=>void;request:(q:AIQuery,signal:AbortSignal)=>Promise<AIReport>};
+export function clearReportCache(stores:Store[]){for(const s of stores){for(const k of storeKeys(s)){if(k.startsWith('gx-ai-v')||k.startsWith('gx-ai-paused:')||k.startsWith('gx-ai-draft-v1:'))s.removeItem(k);}}}
+export type QueueState={reports:Record<string,AIReport>;drafts:Record<string,AIDraft>;focus?:string;busy:string;progress:string;errors:Record<string,string>;ready:boolean;paused:boolean;storageWarning:string};
+export type QueueEnvironment={loadDrafts?:()=>Record<string,AIDraft>;saveDraft?:(id:string,d:AIDraft|null)=>void;load:()=>Record<string,AIReport>;save:(id:string,r:AIReport)=>boolean;getPaused:()=>boolean;setPaused:(v:boolean)=>void;request:(q:AIQuery,signal:AbortSignal,onProgress:(draft:AIDraft,label:string)=>void,prior?:AIDraft)=>Promise<AIReport>};
 export class AIReportQueue{
- private state:QueueState={reports:{},busy:'',progress:'',errors:{},ready:false,paused:false,storageWarning:''};
+ private state:QueueState={reports:{},drafts:{},busy:'',progress:'',errors:{},ready:false,paused:false,storageWarning:''};
  private listeners=new Set<()=>void>();private controller:AbortController|null=null;private pending:AIQuery[]=[];private promise:Promise<void>|null=null;
  constructor(private env:QueueEnvironment){}
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private update(patch:Partial<QueueState>){this.state={...this.state,...patch};this.listeners.forEach(fn=>fn());}
- hydrate(){if(this.state.ready)return;this.update({reports:this.env.load(),paused:this.env.getPaused(),ready:true});}
+ hydrate(){if(this.state.ready)return;const drafts=this.env.loadDrafts?.()||{};this.update({reports:this.env.load(),drafts,focus:Object.keys(drafts).at(-1),paused:this.env.getPaused(),ready:true});}
  run=(queries:AIQuery[])=>{
   this.hydrate();
   for(const q of queries){const id=queryKey(q);if(!this.state.reports[id]&&id!==this.state.busy&&!this.pending.some(p=>queryKey(p)===id))this.pending.push(q);}
@@ -47,12 +48,16 @@ export class AIReportQueue{
  private async drain(controller:AbortController){let completed=0;try{
   while(this.pending.length&&!controller.signal.aborted){
    const q=this.pending.shift()!,id=queryKey(q);if(this.state.reports[id])continue;
-   this.update({busy:id,progress:`正在为你生成 ${q.year} 年${q.month?` ${q.month} 月`:''}详批 · 本轮 ${completed+1}/${completed+1+this.pending.length}，每份通常需要 1–4 分钟`,errors:{...this.state.errors,[id]:''}});
-   try{const r=await this.env.request(q,controller.signal);if(controller.signal.aborted){this.pending.unshift(q);break;}if(!validReport(r,id))throw Error('报告尚未完整生成，请重试。');
-    const saved=this.env.save(id,r);this.update({reports:{...this.state.reports,[id]:r},storageWarning:saved?'':'报告暂存当前页面；浏览器未允许保存，请导出需要保留的内容。'});completed++;
-   }catch(e){this.pending.unshift(q);if(!controller.signal.aborted)this.update({errors:{...this.state.errors,[id]:e instanceof Error?e.message:'连接中断，请重试。'},progress:'这份报告暂未完成。已完成内容已保留，可继续生成剩余报告。'});break;}
+   this.update({busy:id,focus:id,progress:`正在为你生成 ${q.year} 年${q.month?` ${q.month} 月`:''}详批 · 本轮 ${completed+1}/${completed+1+this.pending.length}，完成一部分就可以先读`,errors:{...this.state.errors,[id]:''}});
+   try{const r=await this.env.request(q,controller.signal,(draft,label)=>{
+     if(controller.signal.aborted)return;
+     this.env.saveDraft?.(id,draft);
+     this.update({drafts:{...this.state.drafts,[id]:draft},progress:`${q.year} 年${q.month?` ${q.month} 月`:''} · ${label}，可以先往下阅读`});
+    },this.state.drafts[id]);if(controller.signal.aborted){this.pending.unshift(q);break;}if(!validReport(r,id))throw Error('报告尚未完整生成，请重试。');
+    const saved=this.env.save(id,r);this.env.saveDraft?.(id,null);const drafts={...this.state.drafts};delete drafts[id];this.update({drafts,reports:{...this.state.reports,[id]:r},storageWarning:saved?'':'报告暂存当前页面；浏览器未允许保存，请导出需要保留的内容。'});completed++;
+   }catch(e){this.pending.unshift(q);if(!controller.signal.aborted)this.update({errors:{...this.state.errors,[id]:e instanceof Error?e.message:'连接中断，请重试。'},progress:'这份报告暂未完成。已完成章节已保留，重试会接着往下写。'});break;}
   }
- }finally{if(this.controller===controller){this.controller=null;this.promise=null;this.update({busy:'',progress:controller.signal.aborted?'已暂停，完成的报告仍保留。':!this.pending.length?'报告已生成，已保存的内容会直接复用。':this.state.progress});}}}
+ }finally{if(this.controller===controller){this.controller=null;this.promise=null;this.update({busy:'',progress:controller.signal.aborted?'已暂停，已完成的章节仍保留。':!this.pending.length?'报告已生成，已保存的内容会直接复用。':this.state.progress});}}}
  cancel=()=>{this.env.setPaused(true);this.update({paused:true});this.controller?.abort();};
  dispose=()=>{this.controller?.abort();};
 }
@@ -61,9 +66,30 @@ export function browserQueue(b:BirthInfo){
  const stores=()=>{const all:Store[]=[];try{all.push(sessionStorage);}catch{}try{all.push(localStorage);}catch{}return all;};
  return new AIReportQueue({
   load:()=>readReports(fp,stores()),
+  loadDrafts:()=>{
+   const result:Record<string,AIDraft>={};const prefix=`gx-ai-draft-v1:${fp}:`;
+   for(const store of stores())try{for(const key of storeKeys(store).filter(k=>k.startsWith(prefix))){try{
+    const id=key.slice(prefix.length),d=JSON.parse(store.getItem(key)||'null') as AIDraft;
+    const parts=id.split('-');const query={scope:parts[0],year:Number(parts[1]),month:Number(parts[2])} as AIQuery;
+    if(!/^(annual|monthly)-\d{4}-\d{1,2}$/.test(id)||!d||!Array.isArray(d.completed)||!(d.completed.includes('core')&&validReport(d.report)||d.completed.includes('summary')&&validSummary(d.summary))||d.completed.some(s=>!stagesFor(query).includes(s)))continue;
+    if(!result[id]||d.completed.length>result[id].completed.length)result[id]=d;
+   }catch{}}}catch{}return result;
+  },
+  saveDraft:(id,draft)=>{
+   const key=`gx-ai-draft-v1:${fp}:${id}`;
+   for(const store of stores())try{
+    if(!draft){store.removeItem(key);continue;}
+    const keys=storeKeys(store).filter(k=>k.startsWith('gx-ai-draft-v1:')&&k!==key);
+    while(keys.length>=12)store.removeItem(keys.shift()!);
+    store.setItem(key,JSON.stringify(draft));
+   }catch{}
+  },
   save:(id,r)=>{try{if(persistReport(localStorage,fp,id,r))return true;}catch{}try{return persistReport(sessionStorage,fp,id,r);}catch{return false;}},
   getPaused:()=>{try{return sessionStorage.getItem(pauseKey)==='1';}catch{return false;}},
   setPaused:v=>{try{if(v)sessionStorage.setItem(pauseKey,'1');else sessionStorage.removeItem(pauseKey);}catch{}},
-  request:async(query,signal)=>{const res=await fetch('/api/ai-reading',{method:'POST',headers:{'Content-Type':'application/json'},signal,body:JSON.stringify({birth:{year:b.year,month:b.month,day:b.day,hour:b.hour,gender:b.gender},query})});const data=await res.json() as {report?:AIReport;error?:string};if(!res.ok||!data.report)throw Error(data.error||'分析暂时不可用，请稍后重试。');return data.report;}
+  request:(query,signal,onProgress,prior)=>generateInStages(query,signal,prior,onProgress,async(stage,partSignal)=>{
+   const res=await fetch('/api/ai-reading',{method:'POST',headers:{'Content-Type':'application/json'},signal:partSignal,body:JSON.stringify({birth:{year:b.year,month:b.month,day:b.day,hour:b.hour,gender:b.gender},query,stage})});
+   const data=await res.json() as {chunk?:AIChunk;error?:string};if(!res.ok||!data.chunk)throw Error(data.error||'分析暂时不可用，请稍后重试。');return data.chunk;
+  })
  });
 }

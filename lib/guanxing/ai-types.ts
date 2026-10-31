@@ -19,3 +19,10 @@ export function aiReportMarkdown(r:AIReport){
  (d?`\n\n### 全年逐月详批（公历月）\n\n${d.months.map(s=>`#### ${s.year} 年 ${s.month} 月 · ${s.headline}\n\n${scores(s)}\n\n${s.reading}\n\n农历分段：${s.ranges.join('；')}${basis(s)}`).join('\n\n')}\n\n### 从所选年份看十年走势\n\n${d.years.map(s=>`#### ${s.year} 年 · ${s.headline}\n\n${scores(s)}\n\n${s.reading}${basis(s)}`).join('\n\n')}`:'')+
  (r.timeline.length?'\n\n### 月内节奏\n\n'+r.timeline.map(t=>`**${t.range}** ${t.reading}`).join('\n\n'):'');
 }
+
+export const ANNUAL_STAGES=['summary','core','foundation','months-first','months-last','outlook'] as const;
+export type AIStage=typeof ANNUAL_STAGES[number];
+export type AISummary={overview:string;model:string;highlights:{key:DomainKey;headline:string;score:number;basis:string[]}[]};
+export type AIChunk={stage:AIStage;model?:string;summary?:AISummary;report?:AIReport;detail?:AIDetail};
+export type AIDraft={completed:AIStage[];summary?:AISummary;report?:AIReport};
+export const STAGE_LABELS:Record<AIStage,string>={summary:'先说结论',core:'年度重点',foundation:'性格与人生阶段','months-first':'1—6 月详解','months-last':'7—12 月详解',outlook:'十年走势'};

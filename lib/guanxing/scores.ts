@@ -2,7 +2,7 @@ import type {Star,SiHua} from '../ziwei/types';
 export type ScoreFactor={label:string;delta:number};
 export type FortuneScore={value:number;label:string;factors:ScoreFactor[]};
 export const SCORE_VERSION='gx-score-v1';
-export const scoreLabel=(n:number)=>n>=80?'较为顺遂':n>=65?'稳中有进':n>=50?'平稳有阻':'宜稳慎行';
+export const scoreLabel=(n:number)=>n>=80?'比较顺，可以主动争取':n>=65?'慢慢变好，按计划推进':n>=50?'有些事要多费点心':'先稳一稳，别急着下决定';
 const huaValue:Record<SiHua,number>={禄:16,权:12,科:10,忌:-18};
 const brightValue:Record<string,number>={庙:8,旺:6,得:4,利:2,平:0,不:-3,闲:-2,陷:-6,地:0};
 const round=(n:number)=>Math.round(n*10)/10;
