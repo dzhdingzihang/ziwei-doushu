@@ -18,7 +18,7 @@ export function useAIReports(chart:ZiweiChart|null,automatic=false){
   const timer=setTimeout(()=>{if(automatic&&!queue.getSnapshot().paused)void queue.run(defaultReportQueries());},0);
   return()=>{clearTimeout(timer);queue.dispose();};
  },[queue,automatic]);
- return{...state,automatic,run:(queries:AIQuery[])=>queue?.run(queries),cancel:()=>queue?.cancel()};
+ return{...state,automatic,selectQuery:(query:AIQuery)=>queue?.focus(query),run:(queries:AIQuery[])=>queue?.run(queries),cancel:()=>queue?.cancel()};
 }
 export type AIState=ReturnType<typeof useAIReports>;
 function download(content:string,name:string){const url=URL.createObjectURL(new Blob([content],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}

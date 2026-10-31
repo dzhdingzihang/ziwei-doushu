@@ -35,7 +35,7 @@ export class AIReportQueue{
  getSnapshot=()=>this.state;
  subscribe=(fn:()=>void)=>{this.listeners.add(fn);return()=>{this.listeners.delete(fn);};};
  private update(patch:Partial<QueueState>){this.state={...this.state,...patch};this.listeners.forEach(fn=>fn());}
- hydrate(){if(this.state.ready)return;const drafts=this.env.loadDrafts?.()||{};this.update({reports:this.env.load(),drafts,focus:Object.keys(drafts).at(-1),paused:this.env.getPaused(),ready:true});}
+ hydrate(){if(this.state.ready)return;const drafts=this.env.loadDrafts?.()||{};this.update({reports:this.env.load(),drafts,focus:queryKey(defaultReportQueries()[0]),paused:this.env.getPaused(),ready:true});}
  run=(queries:AIQuery[])=>{
   this.hydrate();
   for(const q of queries){const id=queryKey(q);if(!this.state.reports[id]&&id!==this.state.busy&&!this.pending.some(p=>queryKey(p)===id))this.pending.push(q);}
@@ -58,6 +58,7 @@ export class AIReportQueue{
    }catch(e){this.pending.unshift(q);if(!controller.signal.aborted)this.update({errors:{...this.state.errors,[id]:e instanceof Error?e.message:'连接中断，请重试。'},progress:'这份报告暂未完成。已完成章节已保留，重试会接着往下写。'});break;}
   }
  }finally{if(this.controller===controller){this.controller=null;this.promise=null;this.update({busy:'',progress:controller.signal.aborted?'已暂停，已完成的章节仍保留。':!this.pending.length?'报告已生成，已保存的内容会直接复用。':this.state.progress});}}}
+ focus=(q:AIQuery)=>this.update({focus:queryKey(q)});
  cancel=()=>{this.env.setPaused(true);this.update({paused:true});this.controller?.abort();};
  dispose=()=>{this.controller?.abort();};
 }

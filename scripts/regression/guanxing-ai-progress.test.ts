@@ -46,3 +46,5 @@ const fixed=await callAIStage(ctx,'test','core',undefined,async(_url,options)=>{
 });
 assert.equal(citationRepairs,1);assert.equal(fixed.report?.domains[0].basis.length,2);assert.equal(fixed.report?.overview,main.overview);
 console.log('PASS: malformed citations repair without regenerating or discarding the completed prose.');
+
+queue.focus({scope:'annual',year:2035});assert.equal(queue.getSnapshot().focus,'annual-2035-0');assert(queue.getSnapshot().drafts[id]);
