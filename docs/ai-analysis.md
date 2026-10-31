@@ -1,6 +1,6 @@
 # 观星 AI 分析
 
-已将静态网站迁移到 Sites 的 Vinext / Cloudflare Workers 运行时，保留同一个 Site、URL、访问范围及完整命盘。年度和月度通过 `/api/ai-reading` 真实调用阿里云百炼 Qwen Plus。不是模拟请求，也不使用规则文案冒充 AI 输出。
+已将静态网站迁移到 Sites 的 Vinext / Cloudflare Workers 运行时，保留同一个 Site、URL、访问范围及完整命盘。年度和月度通过 `/api/ai-reading` 真实调用阿里云百炼 Qwen3.7 Plus。不是模拟请求，也不使用规则文案冒充 AI 输出。
 
 ## 工作流程
 
@@ -23,7 +23,7 @@
 - `npm run test:ai`
 - `AI_LIVE_TEST=1 npm run test:ai`：真实模型测试，会消耗少量 API 额度。
 
-API：[千问兼容接口官方文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions/)。模型固定 `qwen-plus`，JSON 输出，90 秒超时，服务端固定 URL，密钥不返回前端。此版本未接入对话追问、个人经历数据或原始大型数据集 RAG。
+API：[千问兼容接口官方文档](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions/)。模型固定 `qwen3.7-plus`，JSON 输出，90 秒超时，服务端固定 URL，密钥不返回前端。此版本未接入对话追问、个人经历数据或原始大型数据集 RAG。
 
 ## 100 分评分与具体情景
 

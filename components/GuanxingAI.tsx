@@ -8,7 +8,7 @@ export function useAIReports(chart:ZiweiChart){
  const b=chart.birthInfo;const fingerprint=`${b.year}-${b.month}-${b.day}-${b.hour}-${b.gender}`;
  const [reports,setReports]=useState<Record<string,AIReport>>({});const cache=useRef<Record<string,AIReport>>({});
  const [busy,setBusy]=useState('');const [progress,setProgress]=useState('');const [errors,setErrors]=useState<Record<string,string>>({});const controller=useRef<AbortController|null>(null);
- useEffect(()=>{const saved:Record<string,AIReport>={};try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i)!;if(k.startsWith(`gx-ai-v2:${fingerprint}:`)){const r=JSON.parse(sessionStorage.getItem(k)!);if(r.version===2&&r.domains?.length===5)saved[k.split(':')[2]]=r;}}}catch{}cache.current=saved;setReports(saved);setErrors({});return()=>controller.current?.abort();},[fingerprint]);
+ useEffect(()=>{const saved:Record<string,AIReport>={};try{for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i)!;if(k.startsWith(`gx-ai-v2:${fingerprint}:`)){const r=JSON.parse(sessionStorage.getItem(k)!);if(r.version===2&&r.model==='qwen3.7-plus'&&r.domains?.length===5)saved[k.split(':')[2]]=r;}}}catch{}cache.current=saved;setReports(saved);setErrors({});return()=>controller.current?.abort();},[fingerprint]);
  async function run(queries:AIQuery[]){
   if(controller.current)return;
   const abort=new AbortController();controller.current=abort;
@@ -26,7 +26,7 @@ function download(content:string,name:string){const url=URL.createObjectURL(new 
 export function exportAIReports(reports:AIReport[]){download('# 观星 · AI 运势报告\n\n传统文化解读，仅供学习与反思，不是确定预测；不能替代医疗、投资或其他专业意见。\n\n'+reports.map(aiReportMarkdown).join('\n\n---\n\n'),'观星-AI运势报告.md');}
 export default function GuanxingAI({state,query}:{state:AIState;query:AIQuery}){
  const id=queryKey(query);const report=state.reports[id];const active=state.busy===id;const error=state.errors[id];
- return <section className="gx-ai-panel" aria-label={`${query.year}${query.month?` 年 ${query.month} 月`:' 年'} AI 分析`}><div className="gx-ai-heading"><div><span className="gx-ai-badge">✦ 千问 AI · Qwen Plus</span><h3>{report?'你的专属 AI 解读':'这些分数，具体意味着什么？'}</h3><p>{query.scope==='annual'?'根据本命、大限与流年，说明分数背后的具体机会、阻力和可能情景。':'结合分数与流月，预估具体情景，并指出月内各阶段的差别。'}</p></div>{report?<button className="gx-outline" onClick={()=>exportAIReports([report])}>导出 AI 报告 ↗</button>:<button className="gx-ai-button" disabled={!!state.busy} onClick={()=>state.run([query])}>{active?'正在分析…':`✦ 生成${query.scope==='annual'?'本年':'本月'} AI 分析`}</button>}</div>
+ return <section className="gx-ai-panel" aria-label={`${query.year}${query.month?` 年 ${query.month} 月`:' 年'} AI 分析`}><div className="gx-ai-heading"><div><span className="gx-ai-badge">✦ 千问 AI · Qwen3.7 Plus</span><h3>{report?'你的专属 AI 解读':'这些分数，具体意味着什么？'}</h3><p>{query.scope==='annual'?'根据本命、大限与流年，说明分数背后的具体机会、阻力和可能情景。':'结合分数与流月，预估具体情景，并指出月内各阶段的差别。'}</p></div>{report?<button className="gx-outline" onClick={()=>exportAIReports([report])}>导出 AI 报告 ↗</button>:<button className="gx-ai-button" disabled={!!state.busy} onClick={()=>state.run([query])}>{active?'正在分析…':`✦ 生成${query.scope==='annual'?'本年':'本月'} AI 分析`}</button>}</div>
  {!report&&<p className="gx-ai-privacy">点击后将提交排盘所需日期、时辰与性别至本站服务端；仅将推导出的命盘资料交给千问，不发送姓名、出生城市或原始生日。结果暂存在当前浏览器会话。<a href="/privacy">了解详情 ↗</a></p>}
  {active&&<div className="gx-ai-status" role="status"><span className="gx-ai-pulse"/>{state.progress}<button onClick={state.cancel}>停止</button></div>}
  {error&&<p className="gx-ai-error" role="alert">{error} 未生成的内容不会以规则文案替代。</p>}

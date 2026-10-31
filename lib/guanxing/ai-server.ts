@@ -49,10 +49,10 @@ export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetche
  if(!key)throw new AIError('AI 服务尚未配置，请联系网站维护者。',503);
  const abort=AbortSignal.any([AbortSignal.timeout(90000),...(signal?[signal]:[])]);
  let response:Response;
- try{response=await fetcher('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',signal:abort,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'qwen-plus',messages:[{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],response_format:{type:'json_object'},enable_thinking:false,temperature:0.65,max_tokens:5500})});}catch{throw new AIError(abort.aborted?'本次分析已取消或超时，请稍后重试。':'暂时无法连接 AI 服务，请稍后重试。',504);}
+ try{response=await fetcher('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',signal:abort,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'qwen3.7-plus',messages:[{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],response_format:{type:'json_object'},enable_thinking:false,temperature:0.65,max_tokens:5500})});}catch{throw new AIError(abort.aborted?'本次分析已取消或超时，请稍后重试。':'暂时无法连接 AI 服务，请稍后重试。',504);}
  if(!response.ok){throw new AIError(response.status===429?'AI 服务繁忙或额度不足，请稍后重试。':'AI 服务暂时不可用，请稍后重试。',response.status===429?429:502);}
  const data=await response.json() as {choices?:{message?:{content?:string};finish_reason?:string}[]};
  if(data.choices?.[0]?.finish_reason!=='stop')throw new AIError('AI 分析未完整生成，请重试。',502);
  let content:unknown;try{content=JSON.parse(data.choices[0].message?.content||'');}catch{throw new AIError('AI 返回格式异常，请重试。',502);}
- return{version:2,title:ctx.title,model:'qwen-plus',generatedAt:new Date().toISOString(),...validateAIOutput(content,ctx)};
+ return{version:2,title:ctx.title,model:'qwen3.7-plus',generatedAt:new Date().toISOString(),...validateAIOutput(content,ctx)};
 }
