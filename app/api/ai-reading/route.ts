@@ -1,17 +1,20 @@
 import {env} from 'cloudflare:workers';
 import {AIError,parseAIRequest,buildAIContext,callAI,callAIStage} from '@/lib/guanxing/ai-server';
 import {ANNUAL_STAGES,type AIStage} from '@/lib/guanxing/ai-types';
+import {allowAnalysis,type AnalysisLimiter} from '@/lib/guanxing/ai-access';
 export const dynamic='force-dynamic';
 export async function POST(request:Request){
  const headers={'Cache-Control':'no-store','Content-Type':'application/json'};
  try{
-  // The Site is owner-private; Sites authenticates access before this Worker.
+  // Public same-origin endpoint; the Worker enforces a per-client request budget.
   const origin=request.headers.get('origin');
   if(origin&&origin!==new URL(request.url).origin)throw new AIError('请从本站发起分析。',403);
   if(!request.headers.get('content-type')?.includes('application/json'))throw new AIError('请求格式不正确。',415);
   const body=await request.text();if(body.length>2048)throw new AIError('请求内容过长。',413);
   let raw:unknown;try{raw=JSON.parse(body);}catch{throw new AIError('请求内容无效。');}
   const {birth,query}=parseAIRequest(raw);
+  const limiter=(env as unknown as {AI_RATE_LIMITER?:AnalysisLimiter}).AI_RATE_LIMITER;
+  if(!await allowAnalysis(request,limiter))return Response.json({error:'请求有点频繁，请稍等一分钟再继续。已完成的内容会保留。'},{status:429,headers:{...headers,'Retry-After':'60'}});
   const ctx=buildAIContext(birth,query);
   const key=(env as unknown as Record<string,string>).DASHSCOPE_API_KEY||process.env.DASHSCOPE_API_KEY||'';
   const stage=(raw as {stage?:unknown}).stage;

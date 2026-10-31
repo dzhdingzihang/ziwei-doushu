@@ -1,6 +1,8 @@
 # 观星 · 个人紫微斗数网站
 
-**网站：** https://ding-ziwei.haledill11.chatgpt.site （Sites 私人站点）
+**网站：** https://suanming.alixjd.com
+
+**部署：** GitHub 源码 + 独立 Cloudflare Workers，访问无需 ChatGPT 账号。配置方式见 [Cloudflare 部署说明](docs/cloudflare-deployment.md)。
 
 基于 Renhuai123/ziwei-doushu 的完整 Fork。保留上游历史、引擎、古籍、语料和许可；另通过 Releases 镜像工作流复制所有独立数据附件。
 

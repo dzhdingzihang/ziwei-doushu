@@ -33,3 +33,6 @@ jobs:
 
       - name: Reference score regression
         run: npm run test:scores
+
+      - name: Cloudflare Worker 构建
+        run: npm run build

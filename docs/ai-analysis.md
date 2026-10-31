@@ -1,6 +1,6 @@
 # 观星 AI 分析
 
-已将静态网站迁移到 Sites 的 Vinext / Cloudflare Workers 运行时，保留同一个 Site、URL、访问范围及完整命盘。年度和月度通过 `/api/ai-reading` 真实调用阿里云百炼 Qwen3.7 Plus。不是模拟请求，也不使用规则文案冒充 AI 输出。
+网站采用独立 Vinext / Cloudflare Workers 运行时，源码存放在 GitHub，完整命盘保留，访问无需 ChatGPT 账号。年度和月度通过 `/api/ai-reading` 真实调用阿里云百炼 Qwen3.7 Plus。不是模拟请求，也不使用规则文案冒充 AI 输出。
 
 ## 工作流程
 
@@ -14,9 +14,9 @@
 
 ## 配置
 
-生产密钥 `DASHSCOPE_API_KEY` 通过 Sites runtime secret 配置。不要放在 `NEXT_PUBLIC_*`、源码、hosting.json 或客户端代码。当前 Site 保持 owner-private，付费 API 受 Sites 访问边界保护；如果未来开放公共访问，应先增加每用户限额与账户权限。
+生产密钥 `DASHSCOPE_API_KEY` 通过 Cloudflare Worker Secret 配置。不要放在 `NEXT_PUBLIC_*`、源码或客户端代码。公开 API 校验同源请求并按来源 IP 限制每分钟 24 次章节请求，返回 429 时保留已完成章节。Cloudflare 的边缘频率限制不等于千问消费上限，费用预算需由阿里云控制台管理。
 
-本地调用核心集成测试可从 shell 的同名环境变量读取密钥。密钥不要提交。`npm run dev` 使用 Vinext，`npm run build` 生成 Worker；生产使用 Sites build helper。平台运行于 Cloudflare，普通 Next/Vercel 部署需要适配 env 读取。
+本地调用核心集成测试可从 shell 的同名环境变量读取密钥。密钥不要提交。`npm run dev` 使用 Vinext，`npm run build` 生成 Worker；生产使用 `npm run deploy`，配置见 `wrangler.jsonc`。普通 Next/Vercel 部署需要适配 env 读取。
 
 - `npm run typecheck`
 - `npm test`
@@ -62,3 +62,7 @@ AI 接收相同分数和排盘依据，给出直白判断、条件式具体情�
 缓存改用 `gx-ai-v4` 并只读取 version 4。已同意自动生成的资料再次打开时会生成新版，避免继续看到旧文案；旧缓存不删除。单份请求最多 240 秒，界面提示每份通常 1–4 分钟。生成时可先看命盘。
 
 定向修订仅重试仍不合格的字段，最多三轮，保留合格段落。缺少或引用错误的章节按单段补全，每批最多三个请求，避免长批次遗漏。健康领域的正文只保留日程和休息安排；专门校验按摩、补品、身体修复等表述不会进入这一栏。
+
+## 分章生成（当前版本）
+
+年度分为 summary、core、foundation、months-first、months-last、outlook 六个阶段。先显示简短结论，已完成章节即时保留，后续最多两个章节并行。百分比来自实际完成章节数；缓存 `gx-ai-v4` 与未完成章节缓存 `gx-ai-draft-v1` 支持继续。部署说明以 [Cloudflare 部署](cloudflare-deployment.md) 为准，上文 v3 为历史设计记录。

@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {allowAnalysis} from '../../lib/guanxing/ai-access';
+const seen:string[]=[];
+const limiter={async limit({key}:{key:string}){seen.push(key);return {success:seen.filter(x=>x===key).length<=2};}};
+const client=(ip:string)=>new Request('https://example.com/api/ai-reading',{headers:{'cf-connecting-ip':ip,'x-forwarded-for':'spoofed'}});
+assert.equal(await allowAnalysis(client('192.0.2.1'),limiter),true);
+assert.equal(await allowAnalysis(client('192.0.2.1'),limiter),true);
+assert.equal(await allowAnalysis(client('192.0.2.1'),limiter),false);
+assert.equal(await allowAnalysis(client('192.0.2.2'),limiter),true);
+assert.deepEqual(seen,['ai:192.0.2.1','ai:192.0.2.1','ai:192.0.2.1','ai:192.0.2.2']);
+await assert.rejects(()=>allowAnalysis(client('192.0.2.1')),/binding is missing/);
+console.log('PASS: public AI quota isolates clients, rejects exhausted budgets, ignores forwarded spoofing and fails closed without binding.');
