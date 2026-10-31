@@ -19,4 +19,8 @@ if(process.env.AI_LIVE_TEST==='1'){
  const report=await callAI(ctx,process.env.DASHSCOPE_API_KEY||'');assert.equal(report.domains.length,5);console.log(JSON.stringify({live:true,model:report.model,title:report.title,domains:report.domains.map(d=>({key:d.key,headline:d.headline})),overview:report.overview}));
  const mr=await callAI(monthly,process.env.DASHSCOPE_API_KEY||'');assert.equal(mr.timeline.length,monthly.periods.length);console.log(JSON.stringify({live:true,title:mr.title,timeline:mr.timeline}));
 }
+const unsafe=structuredClone(fixture);unsafe.overview='身体耐受力提升';let tries=0;
+const repaired=await callAI(ctx,'test',undefined,async()=>{tries++;const output=tries===1?unsafe:{overview:fixture.overview,health:fixture.domains.find(d=>d.key==='health'),timeline:[]};return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(output)}}]});});
+assert.equal(tries,2);assert.equal(repaired.domains.length,5);assert.equal(repaired.score,ctx.score);
+assert.equal(validateAIOutput({...fixture,overview:'命盘不能判断身体耐受力提升'},ctx).domains.length,5);
 console.log('AI input validation, evidence integrity, privacy, provider errors and output completeness passed.');

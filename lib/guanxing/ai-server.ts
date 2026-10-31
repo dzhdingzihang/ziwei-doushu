@@ -42,17 +42,29 @@ export function validateAIOutput(value:unknown,ctx:AIContext):Omit<AIReport,'ver
  const timeline=ctx.scope==='monthly'?ctx.periods.map(p=>{const t=(v.timeline as Record<string,unknown>[]).find(t=>t?.periodId===p.id);return{range:p.range,reading:str(t?.reading,800)};}):[];
  const overview=str(v.overview);
  const healthText=[overview,...domains.filter(d=>d.key==='health').flatMap(d=>[d.headline,d.analysis,d.scenario,d.watch,d.opportunity,d.caution,d.action]),...timeline.map(t=>t.reading)].join(' ');
- if(/(恢复力|免疫力|体质|病情|身体状况|耐力|耐受力|体能|身体).{0,10}(提升|增强|下降|改善|恶化|好转|变差|变好|尚可|偏弱)|易(失眠|晨倦|晚亢|头痛|心悸)/.test(healthText))throw new AIError('AI 健康描述超出了生活参考范围，请重试。',502);
+ if(healthText.split(/[。！？\n]/).some(s=>/(恢复力|免疫力|体质|病情|身体状况|耐力|耐受力|体能|身体).{0,10}(提升|增强|下降|改善|恶化|好转|变差|变好|尚可|偏弱)|易(失眠|晨倦|晚亢|头痛|心悸)/.test(s)&&!/(不代表|不能|不意味着|并不|不应|不可|不作|无法|不用于|不预测)/.test(s)))throw new AIError('AI 健康描述超出了生活参考范围，请重试。',502);
  return {overview,domains,timeline,score:ctx.score};
 }
 export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetcher:typeof fetch=fetch):Promise<AIReport>{
  if(!key)throw new AIError('AI 服务尚未配置，请联系网站维护者。',503);
- const abort=AbortSignal.any([AbortSignal.timeout(90000),...(signal?[signal]:[])]);
+ const abort=AbortSignal.any([AbortSignal.timeout(120000),...(signal?[signal]:[])]);
+ async function complete(messages:{role:string;content:string}[],maxTokens:number){
  let response:Response;
- try{response=await fetcher('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',signal:abort,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'qwen3.7-plus',messages:[{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],response_format:{type:'json_object'},enable_thinking:false,temperature:0.65,max_tokens:5500})});}catch{throw new AIError(abort.aborted?'本次分析已取消或超时，请稍后重试。':'暂时无法连接 AI 服务，请稍后重试。',504);}
+ try{response=await fetcher('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',signal:abort,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'qwen3.7-plus',messages,response_format:{type:'json_object'},enable_thinking:false,temperature:0.5,max_tokens:maxTokens})});}catch{throw new AIError(abort.aborted?'本次分析已取消或超时，请稍后重试。':'暂时无法连接 AI 服务，请稍后重试。',504);}
  if(!response.ok){throw new AIError(response.status===429?'AI 服务繁忙或额度不足，请稍后重试。':'AI 服务暂时不可用，请稍后重试。',response.status===429?429:502);}
  const data=await response.json() as {choices?:{message?:{content?:string};finish_reason?:string}[]};
  if(data.choices?.[0]?.finish_reason!=='stop')throw new AIError('AI 分析未完整生成，请重试。',502);
  let content:unknown;try{content=JSON.parse(data.choices[0].message?.content||'');}catch{throw new AIError('AI 返回格式异常，请重试。',502);}
- return{version:2,title:ctx.title,model:'qwen3.7-plus',generatedAt:new Date().toISOString(),...validateAIOutput(content,ctx)};
+ return content;
+ }
+ const content=await complete([{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],5500);
+ let checked:ReturnType<typeof validateAIOutput>;
+ try{checked=validateAIOutput(content,ctx);}catch(error){
+  if(!(error instanceof AIError)||!error.message.includes('健康描述'))throw error;
+  const raw=content as {overview:string;domains:Record<string,unknown>[];timeline:unknown[]};
+  const health=raw.domains.find(d=>d.key==='health')!;
+  const patch=await complete([{role:'system',content:'你是文字编辑。给定报告含不恰当的身体预测，请只做修订：overview和timeline删除所有关于身体状态、健康好坏的判断；health只保留日程、休息、实际感受记录、工作生活分配等生活建议，禁止推断任何身体能力、病情、症状或康复变化。不要用否定句重复有害预测，直接改成生活安排建议。保留health全部字段及原basisIds，timeline原periodId保持不变。仅返回JSON：{overview:string,health:原health结构,timeline:原数组结构}。不要修改其他领域。'},{role:'user',content:JSON.stringify({overview:raw.overview,health,timeline:raw.timeline})}],2300) as {overview:unknown;health:Record<string,unknown>;timeline:unknown};
+  checked=validateAIOutput({...raw,overview:patch.overview,timeline:patch.timeline,domains:raw.domains.map(d=>d.key==='health'?{...patch.health,key:'health',basisIds:health.basisIds}:d)},ctx);
+ }
+ return{version:2,title:ctx.title,model:'qwen3.7-plus',generatedAt:new Date().toISOString(),...checked};
 }

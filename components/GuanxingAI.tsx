@@ -13,7 +13,7 @@ export function useAIReports(chart:ZiweiChart){
   if(controller.current)return;
   const abort=new AbortController();controller.current=abort;
   const todo=queries.filter(q=>!cache.current[queryKey(q)]);let finished=0;
-  try{for(const q of todo){if(abort.signal.aborted)break;const id=queryKey(q);setBusy(id);setErrors(e=>({...e,[id]:''}));setProgress(todo.length>1?`正在分析 ${q.year} 年 ${q.month?`${q.month} 月`:''} · ${finished+1} / ${todo.length}`:'AI 正在综合命盘与运限，通常需要 30–90 秒…');
+  try{for(const q of todo){if(abort.signal.aborted)break;const id=queryKey(q);setBusy(id);setErrors(e=>({...e,[id]:''}));setProgress(todo.length>1?`正在分析 ${q.year} 年 ${q.month?`${q.month} 月`:''} · ${finished+1} / ${todo.length}`:'AI 正在综合命盘与运限，通常需要 30–120 秒…');
    try{const res=await fetch('/api/ai-reading',{method:'POST',headers:{'Content-Type':'application/json'},signal:abort.signal,body:JSON.stringify({birth:{year:b.year,month:b.month,day:b.day,hour:b.hour,gender:b.gender},query:q})});const data=await res.json() as {report?:AIReport;error?:string};if(!res.ok||!data.report)throw Error(data.error||'AI 暂时不可用，请重试。');if(abort.signal.aborted)break;
     const r=data.report as AIReport;cache.current={...cache.current,[id]:r};setReports({...cache.current});try{sessionStorage.setItem(`gx-ai-v2:${fingerprint}:${id}`,JSON.stringify(r));}catch{}finished++;
    }catch(e){if(abort.signal.aborted)break;setErrors(prev=>({...prev,[id]:e instanceof Error?e.message:'连接中断，请重试。'}));setProgress(todo.length>1?`已完成 ${finished} 份，其余暂停。展开未完成的月份可重试。`:'');break;}
