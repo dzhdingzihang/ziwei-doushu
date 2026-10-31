@@ -11,5 +11,5 @@
 - [x] 在 `scripts/regression/guanxing-ai.test.ts` 验证定向修订、证据保留、无关字段不变、拒绝无效补丁；运行 `npm run test:ai` 与 `npm run typecheck`。
 - [x] `ai-types.ts`、`ai-client.ts` 和缓存测试升级 v4，验证 v3 报告不能继续冒充新版。
 - [x] 修改 `GuanxingAI.tsx`、`GuanxingDetailedReading.tsx` 与 CSS，整体结论前置、口语化标题、分段正文，导出保持一致。
-- [ ] 通过本机页面提交虚构资料，实查真实 AI 文案、12个月、十年、分数和缓存。检查手机排版并保存截图。
+- [x] 通过本机页面提交虚构资料，实查真实 AI 文案、12个月、十年、分数和缓存。检查手机排版并保存截图。
 - [ ] Sites helper 构建和同步源码，发布原站点；同步 GitHub 并确认 CI，返回新网站和真实文案节选。

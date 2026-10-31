@@ -97,7 +97,21 @@ export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetche
  if(ctx.detail){
   try{detail=validateDetail(detailContent,ctx.detail);}catch{
    const tasks=detailRepairTasks(detailContent,ctx.detail);
-   const patched=tasks.length?await complete([{role:'system',content:DETAIL_REPAIR_SYSTEM},{role:'user',content:JSON.stringify({age:ctx.detail.age,year:ctx.detail.year,tasks})}],Math.min(10500,1500+tasks.length*700)):{sections:[]};
+   const sections:Record<string,unknown>[]=[];
+   // A long multi-section repair sometimes drops rows. Repair one section per call.
+   for(let i=0;i<tasks.length;i+=3){
+    const batch=await Promise.all(tasks.slice(i,i+3).map(async task=>{
+     for(let attempt=0;attempt<2;attempt++){
+      const result=await complete([{role:'system',content:DETAIL_REPAIR_SYSTEM},{role:'user',content:JSON.stringify({age:ctx.detail!.age,year:ctx.detail!.year,tasks:[task]})}],2200) as {sections?:Record<string,unknown>[]};
+      const rows=result?.sections;
+      const row=Array.isArray(rows)?rows.find(r=>r.group===task.group&&r.id===task.id)||(rows.length===1?rows[0]:undefined):undefined;
+      const prefix=task.group==='natal'?'natal-':`${task.id}-`;
+      if(row&&typeof row.headline==='string'&&row.headline.trim()&&row.headline.length<=100&&typeof row.reading==='string'&&row.reading.length>=task.minimumCharacters-30&&row.reading.length<=1800&&Array.isArray(row.basisIds)&&new Set(row.basisIds).size>=2&&row.basisIds.length<=8&&row.basisIds.every(id=>typeof id==='string'&&id.startsWith(prefix)&&!!ctx.detail!.bases[id]))return{...row,group:task.group,id:task.id};
+     }
+     throw new AIError('个别段落暂未补全，请稍后重试。',502);
+    }));sections.push(...batch);
+   }
+   const patched={sections};
    try{detail=validateDetail(await checkProse(applyDetailRepairs(detailContent,patched,ctx.detail)),ctx.detail);}catch(error){throw new AIError(error instanceof Error?error.message:'详批生成不完整，请重试。',502);}
   }
  }

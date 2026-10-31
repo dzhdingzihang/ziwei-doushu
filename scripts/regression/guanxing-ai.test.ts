@@ -113,3 +113,13 @@ let voiceRetries=0;
 const voiceRetry=await callAI(ctx,'test',undefined,async(_url,options)=>{const body=String(options?.body);let output:unknown;if(body.includes('你是观星报告的大白话编辑')){voiceRetries++;output={patches:[{id:'domains.1.analysis',text:voiceRetries===1?'文曲化忌，项目容易改来改去。':plain}]};}else output=body.includes('连贯叙述')?detailed:stiff;return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(output)}}]});});
 assert.equal(voiceRetries,2);assert.equal(voiceFields(voiceRetry).length,0);assert.equal(voiceRetry.domains[1].analysis,plain);
 console.log('PASS: jargon repair retries only remaining fields without restarting the report.');
+
+const twoBad=structuredClone(detailed);twoBad.months[0].reading='太短';twoBad.months[1].reading='也短';let individualRepairs=0;
+const repairedSeparately=await callAI(ctx,'test',undefined,async(_url,options)=>{const body=JSON.parse(String(options?.body));const system=body.messages[0].content;let output:unknown;if(system.includes('你为紫微斗数详批补全指定段落')){individualRepairs++;const input=JSON.parse(body.messages[1].content);assert.equal(input.tasks.length,1);const task=input.tasks[0];output={sections:[{group:task.group,...detailed.months.find(m=>m.id===task.id)}]};}else output=system.includes('连贯叙述')?twoBad:fixture;return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(output)}}]});});
+assert.equal(individualRepairs,2);assert.equal(repairedSeparately.detail?.months.length,12);
+console.log('PASS: multiple incomplete chapters repair independently without missing rows.');
+
+const healthMetaphors={domains:[{key:'health',headline:'安排好休息时间',scenario:'按摩后肯定觉得舒坦，身体会修复。',action:'运动能增强身体的自我修复能力。',watch:'每晚九点后是否还在处理工作消息。'}]};
+const healthFields=claimFields(healthMetaphors);assert.equal(healthFields.length,2);assert(healthFields.every(f=>f.lifeOnly));assert(safeRepairInput(healthFields).every(f=>!f.text.includes('按摩')&&!f.text.includes('修复')));
+assert(unsupportedClaim('身体容易因为过度劳累而出小毛病。'));
+console.log('PASS: health prose stays about schedules, not body predictions, treatments or fitness effects.');
