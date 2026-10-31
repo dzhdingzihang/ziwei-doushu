@@ -26,6 +26,8 @@ Worker 名称为 `ding-ziwei`。`wrangler.jsonc` 是源配置，Cloudflare Vite 
 
 ## GitHub 自动部署
 
+已连接 `dzhdingzihang/ziwei-doushu` 的 `main` 分支到 `ding-ziwei` Worker，非生产分支预览关闭；构建环境固定 Node 22。以下是当前配置及重建连接的方法。
+
 Cloudflare Worker → Settings → Builds → Connect → 选择本仓库、main 分支。
 
 - 根目录：`/`
