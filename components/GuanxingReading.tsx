@@ -1,0 +1,4 @@
+'use client';
+import type { Palace, ZiweiChart } from '@/lib/ziwei/types';
+import { readPalace } from '@/lib/guanxing/reading';
+export default function GuanxingReading({ chart, palace }: {chart:ZiweiChart;palace:Palace}){const r=readPalace(chart,palace);return <aside className="gx-reading" aria-live="polite"><span className="gx-eyebrow">READ YOUR CHART</span><h2>{palace.name}<small>{r.domain}</small></h2><div className="gx-reading-tabs">{r.stars.map(s=><span key={s.name}>{s.name} <small>{s.brightnessRaw}</small></span>)}</div><h3>先看盘面依据</h3><p>{r.evidence}</p>{r.transformations&&<p className="gx-notice">生年四化：{r.transformations}。禄、权、科、忌是传统象义，不代表现实中的确定吉凶。</p>}<h3>理解星曜的象征</h3>{r.texts.map((t,i)=><p key={i}>{t}</p>)}<div className="gx-question"><span>留一个问题给自己</span><p>{r.question}</p></div><p className="gx-fine">基于实际排盘的规则解释 · 非 AI 解读<br/>点击命盘任一宫位，查看对应内容。亮度表示传统庙旺等级，不是能力评分。</p></aside>}

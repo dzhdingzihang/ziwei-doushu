@@ -1,3 +1,18 @@
+# 观星 · 个人紫微斗数网站
+
+**网站：** https://ding-ziwei.haledill11.chatgpt.site （Sites 私人站点）
+
+基于 Renhuai123/ziwei-doushu 的完整 Fork。保留上游历史、引擎、古籍、语料和许可；另通过 Releases 镜像工作流复制所有独立数据附件。
+
+本版本提供新的响应式界面、实际排盘、基础宫位解释、十四主星百科、古籍全文搜索、命盘本机收藏与 Markdown 导出。当前解读为原创规则说明，非 AI，不包含上游未公开的商业断语库。
+
+- [项目说明与运行方式](docs/观星项目说明.md)
+- [未改动的上游说明](docs/README.upstream.md)
+- [数据镜像工作流](https://github.com/dzhdingzihang/ziwei-doushu/actions/workflows/mirror-releases.yml)
+- [全部数据 Releases](https://github.com/dzhdingzihang/ziwei-doushu/releases)
+
+---
+
 <div align="center">
 
 # 紫微斗数 · 开源排盘引擎

@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {prepareBirth,EMPTY_DRAFT} from '../../lib/guanxing/birth';
+import {generateChart} from '../../lib/ziwei/algorithm';
+import {readPalace,exportReading} from '../../lib/guanxing/reading';
+const base={...EMPTY_DRAFT,date:'2000-01-01',time:'12:00'};
+assert.equal(prepareBirth(base).info.hour,6);
+assert.throws(()=>prepareBirth({...base,date:'2001-02-29'}));
+assert.throws(()=>prepareBirth({...base,time:''}));
+assert.throws(()=>prepareBirth({...base,solar:true}));
+assert.equal(prepareBirth({...base,time:'23:30'}).info.day,2);
+assert.equal(prepareBirth({...base,time:'23:30',late:'current-day'}).info.day,1);
+assert.equal(prepareBirth({...base,date:'2000-01-01',time:'00:30',dst:true,late:'current-day'}).info.year,1999);
+const plain=prepareBirth({...base,date:'1990-08-25',time:'03:30'});
+const summer=prepareBirth({...base,date:'1990-08-25',time:'03:30',dst:true});
+assert.equal(plain.info.hour,2);assert.equal(summer.info.hour,1);
+const solar=prepareBirth({...base,time:'00:30',solar:true,city:'乌鲁木齐',longitude:87.6,late:'current-day'});
+assert.equal(solar.info.year,1999);
+const chart=generateChart(prepareBirth(base).info);
+assert.equal(chart.palaces.length,12);
+for(const p of chart.palaces){const reading=readPalace(chart,p);assert.ok(reading.evidence.includes(p.name));assert.ok(reading.texts.length>0);}
+const empty=chart.palaces.find(p=>!p.stars.some(s=>s.type==='major'))!;
+assert.ok(readPalace(chart,empty).evidence.includes('对宫'));
+const exported=exportReading(chart,'test');assert.equal((exported.match(/^## /gm)||[]).length,12);
+console.log('PASS: birth validation, late-zi rollover, explicit DST, solar cross-date, all palace readings, empty-palace borrowing and export.');

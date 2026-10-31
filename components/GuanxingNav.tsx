@@ -1,0 +1,3 @@
+import Link from 'next/link';
+export default function GuanxingNav() { return <header className="gx-nav"><Link href="/" className="gx-brand"><span className="gx-seal">觀</span><span>观星<small>GUANXING</small></span></Link><nav aria-label="主导航"><Link href="/chart">紫微排盘</Link><Link href="/knowledge">星曜百科</Link><Link href="/library">古籍书房</Link></nav><Link href="/history" className="gx-history">我的命盘 <span>↗</span></Link></header>; }
+export function GuanxingFooter() { return <footer className="gx-footer"><span>观星 · 看见更多可能，保有自己的选择。</span><div><a href="https://github.com/dzhdingzihang/ziwei-doushu">个人源码 ↗</a><a href="/about">来源与说明</a><a href="/privacy">隐私</a></div><p>传统文化学习与娱乐参考，不作确定的人生预测。出生信息在浏览器内计算，点击保存后仅留存在当前设备。</p></footer>; }

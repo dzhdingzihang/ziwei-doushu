@@ -1,75 +1,16 @@
 'use client';
-import { useState } from 'react';
-import BirthForm from '@/components/BirthForm';
+import { useEffect,useState } from 'react';
+import GuanxingNav,{GuanxingFooter} from '@/components/GuanxingNav';
+import GuanxingForm from '@/components/GuanxingForm';
+import GuanxingReading from '@/components/GuanxingReading';
 import ChartBoard from '@/components/ChartBoard';
-import InsightPanel from '@/components/InsightPanel';
-import TimeNav, { type TimeView } from '@/components/TimeNav';
 import { generateChart } from '@/lib/ziwei/algorithm';
-import type { BirthInfo, ZiweiChart, Palace } from '@/lib/ziwei/types';
-
-/**
- * 命盘页 —— 开源版「排盘引擎 Demo」
- *
- * 这是一个最小可运行示例：用本仓库的排盘引擎 generateChart() 配合基础 UI
- * 组件，渲染一张完整紫微命盘 + 基础解读，并支持本命 / 大限 / 流年切换。
- *
- * 说明：线上商业版的完整交互界面（重设计的新 UI、AI 流式解读、合盘、分享
- * 卡片等）不在开源范围内；但排盘内核——安星算法、四化、格局识别、古籍库——
- * 完全开放（见 lib/ziwei/*），可自由二次开发出你自己的界面。
- */
-export default function ChartPage() {
-  const [chart, setChart] = useState<ZiweiChart | null>(null);
-  const [selectedPalace, setSelectedPalace] = useState<Palace | null>(null);
-  const [view, setView] = useState<TimeView>('mingpan');
-  const [liunianYear, setLiunianYear] = useState(() => new Date().getFullYear());
-
-  // ── 未起盘：展示出生信息表单 ──
-  if (!chart) {
-    return (
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 20px' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>紫微斗数排盘</h1>
-        <p style={{ color: '#888', marginBottom: 32, fontSize: 14, lineHeight: 1.7 }}>
-          输入出生年月日时，开源排盘引擎即时生成命盘。
-          <br />
-          （本页为引擎 Demo，完整商业版界面不在开源范围；排盘内核完全开放。）
-        </p>
-        <BirthForm onSubmit={(info: BirthInfo) => setChart(generateChart(info))} />
-      </main>
-    );
-  }
-
-  // ── 已起盘：命盘 + 解读 ──
-  return (
-    <main style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px' }}>
-      <button
-        type="button"
-        onClick={() => { setChart(null); setSelectedPalace(null); }}
-        style={{
-          marginBottom: 16, padding: '6px 14px', cursor: 'pointer',
-          border: '1px solid #ccc', borderRadius: 8, background: 'transparent',
-        }}
-      >
-        ← 重新起盘
-      </button>
-
-      <TimeNav
-        chart={chart}
-        view={view}
-        liunianYear={liunianYear}
-        onViewChange={setView}
-        onYearChange={setLiunianYear}
-      />
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)',
-          gap: 20, marginTop: 16, alignItems: 'start',
-        }}
-      >
-        <ChartBoard chart={chart} onPalaceSelect={setSelectedPalace} />
-        <InsightPanel chart={chart} selectedPalace={selectedPalace} />
-      </div>
-    </main>
-  );
-}
+import type { ZiweiChart,Palace } from '@/lib/ziwei/types';
+import { EMPTY_DRAFT,prepareBirth,SESSION_KEY,HISTORY_KEY,getSaved,type BirthDraft } from '@/lib/guanxing/birth';
+import { exportReading } from '@/lib/guanxing/reading';
+export default function ChartPage(){const [chart,setChart]=useState<ZiweiChart|null>(null);const [selected,setSelected]=useState<Palace|null>(null);const [draft,setDraft]=useState<BirthDraft>(EMPTY_DRAFT);const [note,setNote]=useState('');const [message,setMessage]=useState('');
+ function create(d:BirthDraft){const prepared=prepareBirth(d);const c=generateChart(prepared.info);setDraft(d);setChart(c);setSelected(c.palaces.find(p=>p.isMingGong)||c.palaces[0]);setNote(prepared.note);setMessage('');try{sessionStorage.setItem(SESSION_KEY,JSON.stringify(d));}catch{} }
+ useEffect(()=>{try{const raw=sessionStorage.getItem(SESSION_KEY);if(raw)create(JSON.parse(raw));}catch{setMessage('上次的记录无法读取，请重新输入出生信息。');}},[]);
+ function save(){try{const entries=getSaved().filter(r=>JSON.stringify(r.draft)!==JSON.stringify(draft));localStorage.setItem(HISTORY_KEY,JSON.stringify([{id:crypto.randomUUID(),draft,savedAt:new Date().toISOString()},...entries].slice(0,30)));setMessage('已保存到当前设备，可在「我的命盘」中查看或删除。');}catch{setMessage('浏览器禁止本地存储，未能保存。你仍可导出解读。');}}
+ function download(){if(!chart)return;const url=URL.createObjectURL(new Blob([exportReading(chart,note)],{type:'text/markdown;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`观星-${draft.name||'命盘'}.md`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ return <div className="gx"><GuanxingNav/><main className="gx-inner">{!chart?<div className="gx-form-page"><div><span className="gx-eyebrow">YOUR PERSONAL STAR MAP</span><h1>每一张星图，<br/>都从一个时刻开始。</h1><p>请填写公历生日与准确出生时间。<br/>命盘的星曜与解读将在你的浏览器中生成。</p></div><GuanxingForm initial={draft} onSubmit={create}/></div>:<><div className="gx-chart-heading"><div><span className="gx-eyebrow">YOUR PERSONAL STAR MAP</span><h1>{draft.name||'我的'}<span> · 紫微命盘</span></h1><p>{draft.date} {draft.time} · {draft.gender==='male'?'男命':'女命'}{draft.city?` · ${draft.city}`:''}</p></div><div className="gx-actions"><button onClick={()=>{setChart(null);setSelected(null);}}>修改信息</button><button onClick={save}>保存命盘</button><button onClick={download}>导出解读 ↗</button></div></div><p className="gx-time-note">{note}</p><div className="gx-facts"><span>五行局 <b>{chart.wuxingJuName}</b></span><span>命主 <b>{chart.mingZhu}</b></span><span>身主 <b>{chart.shenZhu}</b></span><span>阴阳 <b>{chart.yinYangGender}</b></span></div><div className="gx-chart-layout"><div className="gx-board"><ChartBoard chart={chart} onPalaceSelect={setSelected} onStarSelect={(_,p)=>setSelected(p)}/><p className="gx-fine">本命 / 大限 / 流年切换显示相应四化叠加；宫位结构为本命盘。右侧文字始终解释所选本命宫位。</p><div className="gx-palace-buttons" aria-label="选择宫位">{chart.palaces.map(p=><button key={p.branch} className={p.branch===selected?.branch?'active':''} onClick={()=>setSelected(p)}>{p.name}</button>)}</div></div>{selected&&<GuanxingReading chart={chart} palace={selected}/>}</div></>}{message&&<p className="gx-notice" role="status">{message}</p>}</main><GuanxingFooter/></div>}
