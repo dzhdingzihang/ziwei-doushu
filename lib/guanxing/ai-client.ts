@@ -1,6 +1,6 @@
 import type {BirthInfo} from '../ziwei/types';
 import type {AIQuery,AIReport} from './ai-types';
-export const REPORT_PREFIX='gx-ai-v3:';
+export const REPORT_PREFIX='gx-ai-v4:';
 export const queryKey=(q:AIQuery)=>`${q.scope}-${q.year}-${q.month||0}`;
 export const reportFingerprint=(b:BirthInfo)=>`${b.year}-${b.month}-${b.day}-${b.hour}-${b.gender}`;
 export function defaultReportQueries(now=new Date()):AIQuery[]{const year=Number(new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Shanghai'}).format(now));return[year,year+1].filter(y=>y<=2099).map(year=>({scope:'annual',year}));}
@@ -8,7 +8,7 @@ type Store=Pick<Storage,'length'|'key'|'getItem'|'setItem'|'removeItem'>;
 const storeKeys=(s:Store)=>Array.from({length:s.length},(_,i)=>s.key(i)).filter((k):k is string=>!!k);
 export function validReport(value:unknown,query?:string):value is AIReport{
  const r=value as AIReport|undefined;
- return !!r&&r.version===3&&r.model==='qwen3.7-plus'&&Array.isArray(r.domains)&&r.domains.length===5&&!!r.money&&Array.isArray(r.timeline)&&typeof r.overview==='string'&&(!query?.startsWith('annual-')||!!r.detail&&Array.isArray(r.detail.months)&&Array.isArray(r.detail.years)&&Array.isArray(r.detail.natal)&&r.detail.natal.length===3&&r.detail.years.length>=1);
+ return !!r&&r.version===4&&r.model==='qwen3.7-plus'&&Array.isArray(r.domains)&&r.domains.length===5&&!!r.money&&Array.isArray(r.timeline)&&typeof r.overview==='string'&&(!query?.startsWith('annual-')||!!r.detail&&Array.isArray(r.detail.months)&&Array.isArray(r.detail.years)&&Array.isArray(r.detail.natal)&&r.detail.natal.length===3&&r.detail.years.length>=1);
 }
 export function readReports(fp:string,stores:Store[]){
  const result:Record<string,AIReport>={};
@@ -47,7 +47,7 @@ export class AIReportQueue{
  private async drain(controller:AbortController){let completed=0;try{
   while(this.pending.length&&!controller.signal.aborted){
    const q=this.pending.shift()!,id=queryKey(q);if(this.state.reports[id])continue;
-   this.update({busy:id,progress:`正在为你生成 ${q.year} 年${q.month?` ${q.month} 月`:''}详批 · 本轮 ${completed+1}/${completed+1+this.pending.length}，每份通常需要 1–3 分钟`,errors:{...this.state.errors,[id]:''}});
+   this.update({busy:id,progress:`正在为你生成 ${q.year} 年${q.month?` ${q.month} 月`:''}详批 · 本轮 ${completed+1}/${completed+1+this.pending.length}，每份通常需要 1–4 分钟`,errors:{...this.state.errors,[id]:''}});
    try{const r=await this.env.request(q,controller.signal);if(controller.signal.aborted){this.pending.unshift(q);break;}if(!validReport(r,id))throw Error('报告尚未完整生成，请重试。');
     const saved=this.env.save(id,r);this.update({reports:{...this.state.reports,[id]:r},storageWarning:saved?'':'报告暂存当前页面；浏览器未允许保存，请导出需要保留的内容。'});completed++;
    }catch(e){this.pending.unshift(q);if(!controller.signal.aborted)this.update({errors:{...this.state.errors,[id]:e instanceof Error?e.message:'连接中断，请重试。'},progress:'这份报告暂未完成。已完成内容已保留，可继续生成剩余报告。'});break;}

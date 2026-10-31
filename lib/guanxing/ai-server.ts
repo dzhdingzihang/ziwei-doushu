@@ -1,3 +1,4 @@
+import {PLAIN_VOICE_SYSTEM,voiceFields,VOICE_REPAIR_SYSTEM,applyVoicePatches} from './ai-voice';
 // Server-only orchestration. The provider receives derived chart facts, never a name or birth location/date.
 import {claimFields,REPAIR_SYSTEM,applyClaimPatches,safeRepairInput} from './ai-language';
 import {buildDetailContext,DETAIL_SYSTEM,validateDetail,detailRepairTasks,applyDetailRepairs,DETAIL_REPAIR_SYSTEM} from './ai-detail';
@@ -31,12 +32,17 @@ export function buildAIContext(birth:BirthInfo,query:AIQuery){
  return {detail:query.scope==='annual'?buildDetailContext(chart,query.year):undefined,score:overallScore(domainScores.map(d=>d.score)),domainScores,scoreVersion:SCORE_VERSION,title:query.scope==='annual'?`${query.year} 年度运势`:`${query.year} 年 ${query.month} 月运势`,bases,scope:query.scope,periods:contexts,natal:{wuxingJu:chart.wuxingJuName,mingZhu:chart.mingZhu,shenZhu:chart.shenZhu,palaces:chart.palaces.map(p=>({name:p.name,branch:p.branch,ming:p.isMingGong,shen:p.isShenGong,stars:p.stars.map(s=>({name:s.name,type:s.type,brightness:s.brightnessRaw,mutagen:s.siHua})),selfSihua:p.selfSihua}))}};
 }
 export type AIContext=ReturnType<typeof buildAIContext>;
-const SYSTEM=`你是「观星」的紫微斗数文化解读助手。根据服务端给出的真实十二宫星曜、本命四化、目标年份大限和流年/流月证据，综合分析财运、事业、健康、家庭、情感。分析必须个性化，解释不同星曜与四化如何共同作用，结合本期年龄和大限，不能只改写通用标签。资料不是统计预测，使用「传统上可读作、可能更需要、可以留意」等自然而不机械的措辞，不声称必然发生。过去月份也只能回顾性推演，不能冒充已发生事实。
-严格边界：只能引用输入已有的星曜/四化/期间，不计算或编造新落宫、流日、吉日、概率、收益、婚期、灾祸。不得编造书籍原句或研究。财运不推荐具体证券、不提供买卖时点或收益保证。健康只讨论作息、精力分配与身体感受，不判断器官、疾病、寿命、怀孕或医疗结果，不把星曜当医学证据。关系不能断言第三者、背叛或分手。未知婚恋状态时兼顾单身与伴侣关系，不假定性取向。儿童以学习、成长及家庭支持解释，不套成人投资、工作、婚恋建议；高龄不假定仍在职。身体不适按实际症状寻求医疗帮助。
-严格区分本命四化和流年/流月四化，不得把本命武曲化禄等说成当期新发生的化禄。大限起止年以 cycleYears 为准，isFirstYear=false 时绝不能说本年是大限开始。健康不得预测具体感受（如晨倦、晚亢、失眠），不得从化禄推断体质、恢复力、免疫力增强或身体状态改善。综述和月内节奏中只提精力分配的生活建议，不判断健康好坏。每个领域给出有依据的主题、年度每项180-260字、月度每项120-180字的连贯综合分析、一个可关注方向、一个协调点、一个具体可执行的生活行动。综合分析要串联本命特点、本期作用、现实中的可观察情境。basisIds引用该领域输入facts里的2-5个id，至少包括本期宫位或四化依据；不要引用别的领域。月度需跨全部农历分段做综合，并在timeline中对每段分别解释变化；年度timeline为空，不凭空猜月份。只输出合法JSON，不要Markdown包裹。
-用户要的是直接判断与具体预估，避免「能量、张力、润养、觉察、支点」等抽象套话。scores里的分数由网站透明规则计算，非真实概率，原样解释，不自行改分。先明确本期偏顺、平稳或有阻，再具体解释钱、项目、分工、居住、相处等可能表现。每项增加scenario：60-100字情景预估，写出1-2种日常情境，例如项目反复修改验收标准、收入增长被共同支出抵消。情景用「若你目前…，这一信号可对应…」条件形式，不假装知道用户的工作、家庭或资产，不保证发生。watch：1-2个现实可核实信号，如返工次数增加、到账延迟、共同支出变化，帮助用户判断情景是否贴近现实。健康scenario仅写繁忙安排下的生活管理场景，不预测症状或身体状态变化。overview用200-300字先明确整体判断，解释“事业变好但责任更重”“收入增加但留财较难”等有输入依据的关系，再给主要应对方向。开头直接说本期重点，不要反复免责声明。overview只用日常语言说整体、事业、财运、家庭、情感，不涉及健康或身体状态，也不罗列术语。健康仅放在health领域。所有文字不复述数字分数、大限第几年或具体年龄，页面已展示，避免重复或算错。不可改写四化星名，例如文曲化忌与廉贞化忌同宫不能说成廉贞双忌。
-money必须分别写赚钱机会earning、留财能力retention、开销压力outflow，每项60-100字，依据wealth的分数因子和事实，解释收入与支出可能不同步；不虚构独立的子项分数，不把每个人都说成留不住钱。
-JSON结构：{"money":{"earning":"赚钱机会","retention":"留财能力","outflow":"开销压力"},"overview":"200-300字全期综述，指出五领域之间的联系与本期主线","domains":[{"key":"wealth","headline":"16字内主题","analysis":"综合分析","scenario":"条件式具体情景预估","watch":"可核实的现实信号","opportunity":"可关注方向","caution":"需协调事项","action":"具体行动","basisIds":["输入事实id"]},...五项key依次wealth,career,health,family,love],"timeline":[{"periodId":"period-1","reading":"40-90字这段的侧重点"},...]}`;
+const SYSTEM=`你是「观星」的紫微斗数文化解读助手。根据输入的本人命盘、目标年份大限、流年/流月事实和固定评分，写一份直接对本人说的详细生活解读。先弄清五个领域的强弱，综合证据后用生活语言讲出来。不是把技术事实逐条翻译，也不是通用的人生建议。
+${PLAIN_VOICE_SYSTEM}
+信息边界：只能引用输入已有的星曜/四化/期间，不计算或编造新落宫、流日、吉日、概率、收益、婚期、灾祸、书籍原句或研究。命盘不能证明真实经历，过去月份也只能回顾推演。财运不推荐证券、买卖时点或资产购买，不保证收益或财富级别。健康只写作息、时间和任务安排，不从命盘推断身体好坏、症状、器官、疾病、体质、寿命、怀孕或医疗结果。不能把“健康分低”写成健康预警。关系不认定第三者、背叛或分手；未知婚恋状态时兼顾单身和有伴侣，不假定性取向。儿童写学习、成长、照顾和家庭支持，不套成年人的求职理财婚恋；高龄不假定在职。身体不适按实际症状寻求医疗帮助。
+事实口径：本命四化与本期四化不能混淆；大限起止以cycleYears为准，isFirstYear=false时不说本年开始换运。scores是网站固定规则的参考分，原样解释，不自行改分、不写成现实概率；文字不复述数字评分、具体年龄、大限第几年。不要因某个领域低分就把其余全部写差，也不要把每个人都写成留不住钱。
+正文安排：
+1. overview写250–350字，分2–3段。第一句直接说这一年/这个月整体怎么样，指出最值得把握的事和最费心的事，再说工作、钱、家人或感情之间会怎样互相影响；最后给一个明确安排。不要涉及健康，不罗列术语，不作章节预告。
+2. domains五项key依次wealth,career,health,family,love。headline用8–22字的大白话下判断，不用“正财稳健，细水长流”之类四字对仗。analysis年度260–360字、月度180–260字，分2–3段：先讲顺不顺，再讲2个具体表现、造成的实际麻烦或收益，最后讲处理办法。事业区分任务变多、被重用、岗位变化和正式升职；财运区分进账和结余；家庭讲分工、家用、陪伴；感情讲认识人、相处、回应和冲突，结合实际状态用条件句；健康只写日程和休息的具体安排。不要每段都劝“保持平和”。
+3. scenario写80–120字，补一个analysis没有展开的日常小场景，有具体的人、事情、问题，结论是可能情景，别假装知道用户经历。watch写1–2个能核对的现象，比如同一份方案反复修改、账款到账时间改变；opportunity、caution、action分别写值得争取什么、哪里别着急、一件具体能做的事，每项25–60字，不互相重复。
+4. money分别写earning（钱更容易从哪来）、retention（能否存下）、outflow（哪些开销值得留意），各90–140字。只依据wealth输入，不编造另三个分数；说清楚进账与支出为何可能不同步，别把“有财”写成必赚大钱。
+5. basisIds引用本领域facts中的2–5个原id，至少包括本期宫位或四化依据，不引用别的领域。技术证据只保存在这些引用中，正文不写术语。月度分析覆盖全部农历分段，timeline每段80–120字讲具体变化；年度timeline必须为空，不凭空分配月份。
+只输出合法JSON，不要Markdown包裹：{"money":{"earning":"内容","retention":"内容","outflow":"内容"},"overview":"全期综述","domains":[{"key":"wealth","headline":"口语标题","analysis":"详细分析","scenario":"具体场景","watch":"现实中可以核对什么","opportunity":"值得争取的事","caution":"注意什么","action":"具体安排","basisIds":["输入事实id"]},...五项],"timeline":[{"periodId":"period-1","reading":"月内这段的安排"},...]}`;
 export function validateAIOutput(value:unknown,ctx:AIContext):Omit<AIReport,'version'|'model'|'generatedAt'|'title'>{
  const v=value as Record<string,unknown>;
  function str(x:unknown,max=1800){if(typeof x!=='string'||!x.trim()||x.length>max)throw new AIError('AI 返回内容不完整，请重试。',502);return x.trim();}
@@ -45,13 +51,14 @@ export function validateAIOutput(value:unknown,ctx:AIContext):Omit<AIReport,'ver
  const timeline=ctx.scope==='monthly'?ctx.periods.map(p=>{const t=(v.timeline as Record<string,unknown>[]).find(t=>t?.periodId===p.id);return{range:p.range,reading:str(t?.reading,800)};}):[];
  const overview=str(v.overview);
  if(claimFields(v).length)throw new AIError('AI 健康描述或财务措辞超出了生活参考范围，请重试。',502);
+ if(voiceFields(v).length)throw new AIError('详批文字还需整理，请重试。',502);
  const money=v.money as Record<string,unknown>|undefined;
  if(!money)throw new AIError('AI 财运详批不完整，请重试。',502);
  return {overview,domains,timeline,score:ctx.score,money:{earning:str(money.earning,800),retention:str(money.retention,800),outflow:str(money.outflow,800)}};
 }
 export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetcher:typeof fetch=fetch):Promise<AIReport>{
  if(!key)throw new AIError('AI 服务尚未配置，请联系网站维护者。',503);
- const abort=AbortSignal.any([AbortSignal.timeout(180000),...(signal?[signal]:[])]);
+ const abort=AbortSignal.any([AbortSignal.timeout(240000),...(signal?[signal]:[])]);
  async function complete(messages:{role:string;content:string}[],maxTokens:number){
  let response:Response;
  try{response=await fetcher('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',{method:'POST',signal:abort,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'qwen3.7-plus',messages,response_format:{type:'json_object'},enable_thinking:false,temperature:0.5,max_tokens:maxTokens})});}catch{throw new AIError(abort.aborted?'本次分析已取消或超时，请稍后重试。':'暂时无法连接 AI 服务，请稍后重试。',504);}
@@ -66,18 +73,28 @@ export async function callAI(ctx:AIContext,key:string,signal?:AbortSignal,fetche
   const patch=await complete([{role:'system',content:REPAIR_SYSTEM},{role:'user',content:JSON.stringify({fields:safeRepairInput(fields)})}],Math.min(7000,1200+fields.length*600));
   try{return applyClaimPatches(value,patch,fields);}catch(error){throw new AIError(error instanceof Error?error.message:'AI 措辞校验失败，请重试。',502);}
  }
+ async function checkProse(value:unknown){
+  let checked=await checkLanguage(value);
+  const fields=voiceFields(checked);
+  if(fields.length){
+   const patches=await complete([{role:'system',content:VOICE_REPAIR_SYSTEM},{role:'user',content:JSON.stringify({fields})}],Math.min(16000,1500+fields.reduce((n,f)=>n+Math.ceil(f.text.length*2.5),0)));
+   try{checked=applyVoicePatches(checked,patches,fields);}catch(e){throw new AIError(e instanceof Error?e.message:'详批文字整理失败，请重试。',502);}
+   checked=await checkLanguage(checked);
+  }
+  return checked;
+ }
  const [content,detailContent]=await Promise.all([
-  complete([{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],7000).then(checkLanguage),
-  ctx.detail?complete([{role:'system',content:DETAIL_SYSTEM},{role:'user',content:JSON.stringify({...ctx.detail,bases:undefined})}],10500).then(checkLanguage):Promise.resolve(undefined)
+  complete([{role:'system',content:SYSTEM},{role:'user',content:JSON.stringify({title:ctx.title,scope:ctx.scope,scores:{overall:ctx.score,domains:ctx.domainScores,method:ctx.scoreVersion},natal:ctx.natal,periods:ctx.periods})}],9000).then(value=>checkProse(ctx.scope==='annual'&&value&&typeof value==='object'?{...value,timeline:[]}:value)),
+  ctx.detail?complete([{role:'system',content:DETAIL_SYSTEM},{role:'user',content:JSON.stringify({...ctx.detail,bases:undefined})}],14000).then(checkProse):Promise.resolve(undefined)
  ]);
  let detail:AIReport['detail'];
  if(ctx.detail){
   try{detail=validateDetail(detailContent,ctx.detail);}catch{
    const tasks=detailRepairTasks(detailContent,ctx.detail);
    const patched=tasks.length?await complete([{role:'system',content:DETAIL_REPAIR_SYSTEM},{role:'user',content:JSON.stringify({age:ctx.detail.age,year:ctx.detail.year,tasks})}],Math.min(10500,1500+tasks.length*700)):{sections:[]};
-   try{detail=validateDetail(await checkLanguage(applyDetailRepairs(detailContent,patched,ctx.detail)),ctx.detail);}catch(error){throw new AIError(error instanceof Error?error.message:'详批生成不完整，请重试。',502);}
+   try{detail=validateDetail(await checkProse(applyDetailRepairs(detailContent,patched,ctx.detail)),ctx.detail);}catch(error){throw new AIError(error instanceof Error?error.message:'详批生成不完整，请重试。',502);}
   }
  }
  const checked=validateAIOutput(content,ctx);
- return{version:3,detail,title:ctx.title,model:'qwen3.7-plus',generatedAt:new Date().toISOString(),...checked};
+ return{version:4,detail,title:ctx.title,model:'qwen3.7-plus',generatedAt:new Date().toISOString(),...checked};
 }

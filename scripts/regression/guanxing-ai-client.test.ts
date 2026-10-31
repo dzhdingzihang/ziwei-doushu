@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {AIReportQueue,defaultReportQueries,queryKey,reportFingerprint,readReports,persistReport,clearReportCache,validReport,type QueueEnvironment} from '../../lib/guanxing/ai-client';
 import type {AIQuery,AIReport} from '../../lib/guanxing/ai-types';
-const report:AIReport={version:3,model:'qwen3.7-plus',title:'2026 年度运势',generatedAt:'2026-10-31T00:00:00Z',score:60,overview:'测试报告',money:{earning:'收入',retention:'积累',outflow:'支出'},domains:['wealth','career','health','family','love'].map(key=>({key:key as any,score:60,headline:'测试',analysis:'测试分析',scenario:'测试情景',watch:'观察',opportunity:'机会',caution:'协调',action:'行动',basis:['依据']})),timeline:[],detail:{natal:['character','work','relationship'].map(id=>({id,headline:'测试',reading:'段落',basis:['依据']})),cycles:[],years:[{id:'year-2026',year:2026,score:60,domainScores:[],headline:'测试',reading:'段落',basis:[]}],months:[]}};
+const report:AIReport={version:4,model:'qwen3.7-plus',title:'2026 年度运势',generatedAt:'2026-10-31T00:00:00Z',score:60,overview:'测试报告',money:{earning:'收入',retention:'积累',outflow:'支出'},domains:['wealth','career','health','family','love'].map(key=>({key:key as any,score:60,headline:'测试',analysis:'测试分析',scenario:'测试情景',watch:'观察',opportunity:'机会',caution:'协调',action:'行动',basis:['依据']})),timeline:[],detail:{natal:['character','work','relationship'].map(id=>({id,headline:'测试',reading:'段落',basis:['依据']})),cycles:[],years:[{id:'year-2026',year:2026,score:60,domainScores:[],headline:'测试',reading:'段落',basis:[]}],months:[]}};
 class MemoryStore{data=new Map<string,string>();get length(){return this.data.size;}key(i:number){return [...this.data.keys()][i]||null;}getItem(k:string){return this.data.get(k)||null;}setItem(k:string,v:string){this.data.set(k,v);}removeItem(k:string){this.data.delete(k);}}
 const a={scope:'annual',year:2026} as AIQuery,b={scope:'annual',year:2027} as AIQuery;
 assert.deepEqual(defaultReportQueries(new Date('2026-12-31T16:00:00Z')).map(q=>q.year),[2027,2028]);
@@ -9,10 +9,10 @@ assert.deepEqual(defaultReportQueries(new Date('2099-01-01T00:00:00Z')).map(q=>q
 const store=new MemoryStore();store.setItem('unrelated','keep');
 assert(persistReport(store,'person-a',queryKey(a),report));assert.equal(Object.keys(readReports('person-b',[store])).length,0);
 assert.equal(readReports('person-a',[store])[queryKey(a)].title,report.title);
-store.setItem('gx-ai-v3:person-a:annual-2027-0','broken');assert.equal(Object.keys(readReports('person-a',[store])).length,1);
+store.setItem('gx-ai-v4:person-a:annual-2027-0','broken');assert.equal(Object.keys(readReports('person-a',[store])).length,1);
 assert(!validReport({...report,version:2},queryKey(a)));assert(!validReport({...report,detail:undefined},queryKey(a)));
 for(let i=0;i<30;i++)persistReport(store,'person-a',`annual-${2040+i}-0`,{...report,generatedAt:`${2040+i}-01-01T00:00:00Z`});
-assert.equal([...store.data.keys()].filter(k=>k.startsWith('gx-ai-v3:')).length,24);assert.equal(store.getItem('unrelated'),'keep');
+assert.equal([...store.data.keys()].filter(k=>k.startsWith('gx-ai-v4:')).length,24);assert.equal(store.getItem('unrelated'),'keep');
 const birth={year:2000,month:1,day:1,hour:2,gender:'male' as const};assert.notEqual(reportFingerprint(birth),reportFingerprint({...birth,hour:3}));
 let requests=0,saved=0,paused=false;
 const env:QueueEnvironment={load:()=>({[queryKey(a)]:report}),save:()=>{saved++;return true;},getPaused:()=>paused,setPaused:v=>{paused=v;},request:async()=>{requests++;await new Promise(r=>setTimeout(r,5));return report;}};
@@ -28,3 +28,7 @@ assert(stoppable.getSnapshot().paused);assert.equal(Object.keys(stoppable.getSna
 await stoppable.run([a,b]);assert.equal(count,3);assert.equal(Object.keys(stoppable.getSnapshot().reports).length,2);
 clearReportCache([store]);assert.equal(store.length,1);assert.equal(store.getItem('unrelated'),'keep');
 console.log('PASS: China-year defaults, isolated bounded cache, malformed cache, duplicate prevention, stop/resume and failure retry.');
+const legacyStore=new MemoryStore();legacyStore.setItem('gx-ai-v3:person-old:annual-2026-0',JSON.stringify({...report,version:3}));
+assert.equal(Object.keys(readReports('person-old',[legacyStore])).length,0);
+assert(!validReport({...report,version:3},queryKey(a)));
+console.log('PASS: old v3 writing cannot be reused as v4 reports.');
